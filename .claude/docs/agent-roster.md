@@ -60,6 +60,7 @@ domain lead) should delegate to specialists.
 | `unreal-specialist` | Unreal Engine 5 | Sonnet | Blueprint vs C++, GAS overview, UE subsystems, Unreal optimization |
 | `unity-specialist` | Unity | Sonnet | MonoBehaviour vs DOTS, Addressables, URP/HDRP, Unity optimization |
 | `godot-specialist` | Godot 4 | Sonnet | GDScript patterns, node/scene architecture, signals, Godot optimization |
+| `web-specialist` | Web (Phaser/PixiJS/Babylon.js) | Sonnet | TypeScript config, framework selection, Canvas/WebGL, bundlers, web deployment |
 
 ### Unreal Engine Sub-Specialists
 
@@ -86,3 +87,17 @@ domain lead) should delegate to specialists.
 | `godot-gdscript-specialist` | GDScript | Sonnet | Static typing, design patterns, signals, coroutines, GDScript performance |
 | `godot-shader-specialist` | Shaders/Rendering | Sonnet | Godot shading language, visual shaders, particles, post-processing |
 | `godot-gdextension-specialist` | GDExtension | Sonnet | C++/Rust bindings, native performance, custom nodes, build systems |
+
+### Web Engine Lead
+
+| Agent | Engine | Model | When to Use |
+| ---- | ---- | ---- | ---- |
+| `web-specialist` | Web (Phaser/PixiJS/Babylon.js) | Sonnet | Framework selection, TypeScript config, Canvas/WebGL/WebGPU, bundlers, browser deployment |
+
+### Web Sub-Specialists
+
+| Agent | Subsystem | Model | When to Use |
+| ---- | ---- | ---- | ---- |
+| `web-phaser-specialist` | Phaser | Sonnet | Scenes, physics (Arcade/Matter), tilemaps, input, camera, Phaser optimization |
+| `web-pixi-specialist` | PixiJS | Sonnet | 2D rendering, display list, sprites, filters, custom game loops, WebGL batching |
+| `web-babylonjs-specialist` | Babylon.js | Sonnet | 3D scenes, WebGPU, materials, physics (Havok), cameras, glTF loading, 3D optimization |
