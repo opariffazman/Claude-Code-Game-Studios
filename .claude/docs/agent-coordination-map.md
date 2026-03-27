@@ -47,6 +47,11 @@
       godot-gdscript-specialist    -- GDScript: static typing, patterns, signals, performance
       godot-shader-specialist      -- Shaders: Godot shading language, visual shaders, VFX
       godot-gdextension-specialist -- Native: C++/Rust bindings, GDExtension, build systems
+
+    web-specialist     -- Web lead: Phaser/PixiJS/Babylon.js, TypeScript, bundlers, WebGL
+      web-phaser-specialist      -- Phaser: scenes, physics, tilemaps, input, camera
+      web-pixi-specialist        -- PixiJS: 2D rendering, sprites, filters, custom game loops
+      web-babylonjs-specialist   -- Babylon.js: 3D engine, WebGPU, materials, physics
 ```
 
 ### Legend
