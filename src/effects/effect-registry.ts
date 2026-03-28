@@ -1,60 +1,94 @@
 /**
- * EffectRegistry — pluggable registration of destruction, damage, and
- * wallpaper effects. Consumers register handlers for each effect category;
- * the registry dispatches to all registered handlers.
+ * EffectRegistry — manages pluggable destruction and damage effects.
  *
- * Decouples the caller (DesktopManager, systems) from specific effect
- * implementations, satisfying Open/Closed for new effect types.
+ * Effects register by name and are selected randomly or by name.
+ * This satisfies the Open/Closed principle: new effects are added by
+ * calling register() without modifying dispatch or caller code.
+ *
+ * Usage:
+ * ```ts
+ * const registry = new EffectRegistry();
+ * registerDestructionEffects(registry);
+ * registry.getRandom()(element, container, particles, audio);
+ * ```
  */
+import type { Container } from 'pixi.js';
 import type { DesktopElement } from '../types';
+import type { ParticleManager } from '../vfx/particle-manager';
+import type { AudioManager } from '../audio/audio-manager';
 
-/** Handler called when an element is destroyed. */
-export type DestructionHandler = (element: DesktopElement, x: number, y: number) => void;
+/**
+ * A single pluggable effect function.
+ * Receives the logical element data, its PixiJS display container,
+ * the particle emission system, and the audio playback manager.
+ */
+export type EffectFn = (
+  element: DesktopElement,
+  container: Container,
+  particles: ParticleManager,
+  audio: AudioManager,
+) => void;
 
-/** Handler called when an element takes damage (but is not yet destroyed). */
-export type DamageHandler = (element: DesktopElement, x: number, y: number) => void;
-
+/**
+ * Registry of named effect functions. Effects are keyed by a short
+ * identifier string (e.g. 'shatter', 'bounce'). Callers retrieve
+ * effects by name or by random selection.
+ */
 export class EffectRegistry {
-  private destructionHandlers: DestructionHandler[] = [];
-  private damageHandlers: DamageHandler[] = [];
+  private effects = new Map<string, EffectFn>();
 
   /**
-   * Register a handler to be called on element destruction.
-   * @param handler - Called with the destroyed element and impact position.
+   * Register an effect under a unique name.
+   * Re-registering the same name overwrites the previous entry.
+   * @param name - Unique identifier for the effect.
+   * @param fn - Effect implementation conforming to EffectFn.
    */
-  onDestruction(handler: DestructionHandler): void {
-    this.destructionHandlers.push(handler);
+  register(name: string, fn: EffectFn): void {
+    this.effects.set(name, fn);
   }
 
   /**
-   * Register a handler to be called on element damage.
-   * @param handler - Called with the damaged element and impact position.
+   * Retrieve an effect by name.
+   * @param name - The registered effect name.
+   * @returns The EffectFn, or undefined if not registered.
    */
-  onDamage(handler: DamageHandler): void {
-    this.damageHandlers.push(handler);
+  get(name: string): EffectFn | undefined {
+    return this.effects.get(name);
   }
 
   /**
-   * Dispatch a destruction event to all registered handlers.
-   * @param element - The element that was destroyed.
-   * @param x - Impact X in logical pixels.
-   * @param y - Impact Y in logical pixels.
+   * Returns a uniformly random effect from all registered effects.
+   * Throws if the registry is empty.
    */
-  dispatchDestruction(element: DesktopElement, x: number, y: number): void {
-    for (const handler of this.destructionHandlers) {
-      handler(element, x, y);
-    }
+  getRandom(): EffectFn {
+    const keys = Array.from(this.effects.keys());
+    if (keys.length === 0) throw new Error('EffectRegistry: no effects registered');
+    const key = keys[Math.floor(Math.random() * keys.length)];
+    return this.effects.get(key) as EffectFn;
   }
 
   /**
-   * Dispatch a damage event to all registered handlers.
-   * @param element - The element that was damaged.
-   * @param x - Impact X in logical pixels.
-   * @param y - Impact Y in logical pixels.
+   * Returns a random effect excluding the named effects.
+   * Falls back to a fully random pick if all effects are excluded.
+   * @param names - Effect names to exclude from selection.
    */
-  dispatchDamage(element: DesktopElement, x: number, y: number): void {
-    for (const handler of this.damageHandlers) {
-      handler(element, x, y);
-    }
+  getRandomExcluding(names: string[]): EffectFn {
+    const excludeSet = new Set(names);
+    const candidates = Array.from(this.effects.entries()).filter(
+      ([name]) => !excludeSet.has(name),
+    );
+    if (candidates.length === 0) return this.getRandom();
+    const [, fn] = candidates[Math.floor(Math.random() * candidates.length)];
+    return fn;
+  }
+
+  /** Total number of registered effects. */
+  get count(): number {
+    return this.effects.size;
+  }
+
+  /** Ordered list of all registered effect names. */
+  get names(): string[] {
+    return Array.from(this.effects.keys());
   }
 }
