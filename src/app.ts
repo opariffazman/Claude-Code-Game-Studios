@@ -290,15 +290,16 @@ export class DeskSmasherApp {
   private handleMouseHit(x: number, y: number): void {
     const target = this.desktop.getElementAt(x, y);
     if (target) {
+      // Tool handles ALL visual/audio effects for mouse clicks.
+      // hitElementToolAware only does health/impulse — no random effects.
       const toolResult = this.mouseTools.applyTool(x, y, target, this.desktop.elements);
-      this.hitElement(target);
+      this.hitElementToolAware(target);
       for (let i = 0; i < toolResult.extraDamage; i++) {
-        if (!target.destroyed) this.hitElement(target);
+        if (!target.destroyed) this.hitElementToolAware(target);
       }
       for (const aoeTarget of toolResult.aoeTargets) {
-        if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
+        if (!aoeTarget.destroyed) this.hitElementToolAware(aoeTarget);
       }
-      // Tool does NOT cycle on LMB — RMB cycles instead (see onRightClick below).
     } else {
       // Empty space — crack wallpaper + tool AoE
       this.desktop.crackWallpaper(x, y);
@@ -306,16 +307,40 @@ export class DeskSmasherApp {
       this.audioManager.play('crack');
       const toolResult = this.mouseTools.applyTool(x, y, null, this.desktop.elements);
       for (const aoeTarget of toolResult.aoeTargets) {
-        if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
+        if (!aoeTarget.destroyed) this.hitElementToolAware(aoeTarget);
       }
-      // Tool does NOT cycle on LMB — RMB cycles instead (see onRightClick below).
     }
   }
 
   /**
-   * Core destruction pipeline for a single element hit.
-   * Decrements health, chooses the appropriate effect, applies impulse physics,
-   * and fires the visual + audio effect.
+   * Tool-aware hit — for mouse clicks. Only does health decrement, impulse,
+   * and sprite particles. The active tool handles all visual/audio effects
+   * via applyTool(), so we don't add random registry effects on top.
+   */
+  private hitElementToolAware(element: import('./types').DesktopElement): void {
+    const container = this.desktop.getContainerForElement(element);
+    if (!container) return;
+
+    element.health--;
+    const cx = element.x + element.width / 2;
+    const cy = element.y + element.height / 2;
+
+    if (element.health <= 0) {
+      element.health = 0;
+      element.destroyed = true;
+      this.spriteParticles.emit(cx, cy, 8, 'spark');
+    } else {
+      applyProgressiveDamage(element, container);
+      this.spriteParticles.emit(cx, cy, 3, 'dirt');
+    }
+
+    this.desktop.applyImpulse(element);
+  }
+
+  /**
+   * Core destruction pipeline for a single element hit (keyboard path).
+   * Decrements health, chooses a random effect from the registry, applies
+   * impulse physics, and fires the visual + audio effect.
    *
    * @param element - The element to damage.
    */
