@@ -45,17 +45,31 @@ export function damageShake(
     scale: 0.4 + dmgRatio * 0.3,
   });
 
-  const origX = container.x;
-  const origY = container.y;
+  // BUG-008 fix: capture the true resting position only on the first shake.
+  // If a second shake fires while the first is still running, container.x/y
+  // are mid-shake offsets, not the original position. Storing restX/restY on
+  // the container instance ensures both shakes restore to the same origin.
+  // The cached values are deleted once the animation fully settles.
+  if ((container as any).__restX === undefined) {
+    (container as any).__restX = container.x;
+    (container as any).__restY = container.y;
+  }
+  const origX: number = (container as any).__restX;
+  const origY: number = (container as any).__restY;
   const shakeStrength = 4 + dmgRatio * 12;
   let shakeTime = 0;
 
   // TODO: convert to ticker-driven
   const shakeInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(shakeInterval); return; }
     shakeTime += 0.016;
     if (shakeTime >= 0.25) {
       container.x = origX;
       container.y = origY;
+      // Remove cached rest coords so future position changes (drag, rebuild)
+      // are not locked to this snapshot.
+      delete (container as any).__restX;
+      delete (container as any).__restY;
       clearInterval(shakeInterval);
       return;
     }
@@ -90,6 +104,7 @@ export function damageWobble(
 
   // TODO: convert to ticker-driven
   const wobbleInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(wobbleInterval); return; }
     wobbleTime += 0.016;
     if (wobbleTime >= 0.4) {
       container.rotation = origRot;
@@ -127,6 +142,7 @@ export function damageSquish(
 
   // TODO: convert to ticker-driven
   const squishInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(squishInterval); return; }
     squishTime += 0.016;
     if (squishTime >= 0.35) {
       container.scale.set(origSX, origSY);
@@ -160,10 +176,10 @@ export function damageFlash(
     scale: 0.5,
   });
 
-  container.tint = 0xff4444;
-  setTimeout(() => {
-    container.tint = 0xffffff;
-  }, 150);
+  // Alpha dip instead of tint snap — avoids a hard-cut flash that would
+  // count against the WCAG photosensitivity budget (CS-1).
+  container.alpha = 0.6;
+  setTimeout(() => { if (container.parent) container.alpha = 1; }, 200);
 }
 
 /**

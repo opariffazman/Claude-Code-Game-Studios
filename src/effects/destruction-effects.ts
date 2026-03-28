@@ -67,6 +67,7 @@ export function bounce(
   // TODO: convert to ticker-driven
   let vy = -800;
   const animInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(animInterval); return; }
     vy += 30;
     container.y += vy * 0.016;
     container.rotation += 0.2;
@@ -121,6 +122,7 @@ export function inflatePop(
 
   // TODO: convert to ticker-driven
   const inflateInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(inflateInterval); return; }
     inflateTime += 0.016;
     const t = inflateTime / inflateDuration;
     container.scale.set(origScaleX * (1 + t * 1.5), origScaleY * (1 + t * 1.5));
@@ -164,6 +166,7 @@ export function pixelate(
 
   // TODO: convert to ticker-driven
   const fadeInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(fadeInterval); return; }
     fadeTime += 0.016;
     container.alpha = Math.max(0, 1 - fadeTime / fadeDuration);
     if (fadeTime >= fadeDuration) {
@@ -199,6 +202,7 @@ export function melt(
 
   // TODO: convert to ticker-driven
   const meltInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(meltInterval); return; }
     meltTime += 0.016;
     const t = meltTime / meltDuration;
     container.scale.y = origScaleY * (1 + t); // stretch to 2×
@@ -237,6 +241,7 @@ export function gravityFlip(
 
   // TODO: convert to ticker-driven
   const flipInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(flipInterval); return; }
     container.y += vy * 0.016;
     if (container.y < -element.height - 200) {
       clearInterval(flipInterval);
@@ -270,6 +275,7 @@ export function vortex(
 
   // TODO: convert to ticker-driven
   const vortexInterval = setInterval(() => {
+    if (!container.parent) { clearInterval(vortexInterval); return; }
     rotationSpeed *= 1.08; // accelerate spin each frame
     container.rotation += rotationSpeed;
     container.scale.x *= 0.93;

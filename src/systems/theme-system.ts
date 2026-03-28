@@ -160,12 +160,24 @@ export class ThemeSystem {
   getNextTheme(): Theme {
     const candidates = THEMES.filter((t) => t !== this._currentTheme);
 
+    // BUG-009 fix: use cumulative build-up with a strict `<` check so the last
+    // candidate is never under-represented.
+    //
+    // Previous pattern (subtract-then-check <= 0) was functionally equivalent
+    // for most inputs, but floating-point precision when roll ≈ totalWeight
+    // could cause the loop to exit without a break, falling back to candidates[0]
+    // and statistically under-representing the last entry.
+    //
+    // This form is the canonical correct weighted-random: accumulate weights
+    // and pick the first bucket whose cumulative sum exceeds the roll.
+    // roll is in [0, totalWeight) — the last bucket always catches a no-break.
     const totalWeight = candidates.reduce((sum, t) => sum + t.weight, 0);
-    let roll = Math.random() * totalWeight;
-    let chosen = candidates[0];
+    const roll = Math.random() * totalWeight;
+    let cumulative = 0;
+    let chosen = candidates[candidates.length - 1]; // safe fallback: last item
     for (const t of candidates) {
-      roll -= t.weight;
-      if (roll <= 0) {
+      cumulative += t.weight;
+      if (roll < cumulative) {
         chosen = t;
         break;
       }

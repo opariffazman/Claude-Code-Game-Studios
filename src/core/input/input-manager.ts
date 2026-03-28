@@ -349,6 +349,9 @@ export class InputManager {
     // Unconditionally blocked codes (Escape, Tab, Backspace, ContextMenu)
     if (BLOCKED_CODES.has(code)) return true;
 
+    // Alt combos (Alt+F4 close window, Alt+Tab switch focus)
+    if (e.altKey) return true;
+
     // Meta (Cmd) combos on macOS
     if (e.metaKey && META_BLOCKED_KEYS.has(key)) return true;
 

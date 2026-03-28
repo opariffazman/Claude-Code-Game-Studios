@@ -16,6 +16,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { DesktopManager } from '../desktop/desktop-manager';
 import type { ThemeSystem } from './theme-system';
+import type { SafetyLimiter } from '../core/safety-limiter';
 
 // ---------------------------------------------------------------------------
 // Configuration — tunable without touching logic
@@ -42,6 +43,7 @@ export class RebuildCycle {
   private readonly desktopManager: DesktopManager;
   private readonly themeSystem: ThemeSystem;
   private readonly onRebuild: () => void;
+  private readonly safety: SafetyLimiter;
 
   /** Fullscreen white overlay. Alpha is driven by the state machine. */
   private readonly overlay: Graphics;
@@ -57,21 +59,25 @@ export class RebuildCycle {
    *                         the stage so it renders above all desktop content).
    * @param onRebuild      - Callback fired after the new desktop is built
    *                         (use to re-sync background color, clear particles, etc.).
+   * @param safety         - SafetyLimiter used to gate the fade-to-white flash
+   *                         against the WCAG photosensitivity budget.
    */
   constructor(
     desktopManager: DesktopManager,
     themeSystem: ThemeSystem,
     overlayParent: Container,
     onRebuild: () => void,
+    safety: SafetyLimiter,
   ) {
     this.desktopManager = desktopManager;
     this.themeSystem = themeSystem;
     this.onRebuild = onRebuild;
+    this.safety = safety;
 
     // Build the fullscreen white overlay at alpha 0 (invisible during normal play).
-    // The overlay must span a generous area to cover screen-shake camera offset.
+    // 10000x10000 with a -200 offset covers any screen size plus screen-shake camera offset.
     this.overlay = new Graphics()
-      .rect(-200, -200, 4000, 3000)
+      .rect(-200, -200, 10000, 10000)
       .fill({ color: 0xffffff, alpha: 1 });
     this.overlay.alpha = 0;
     this.overlay.label = 'rebuild-overlay';
@@ -133,6 +139,12 @@ export class RebuildCycle {
   private updateCelebrating(dt: number): void {
     this.stateTimer += dt;
     if (this.stateTimer >= CELEBRATE_DURATION) {
+      if (!this.safety.canFlash()) {
+        // Flash budget exhausted — skip the white flash and rebuild immediately.
+        this.enterState('rebuilding');
+        return;
+      }
+      this.safety.recordFlash();
       this.enterState('fading_out');
     }
   }

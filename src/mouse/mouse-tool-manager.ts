@@ -77,6 +77,15 @@ export class MouseToolManager {
   /** Bound mousemove handler stored for removal on destroy. */
   private readonly _onMouseMove: (e: MouseEvent) => void;
 
+  /** Bound resize handler stored for removal on destroy. */
+  private readonly _onResize: () => void;
+
+  // BUG-006/BUG-007 fix: cache canvas bounds so mousemove does not trigger
+  // a layout read (getBoundingClientRect) on every event.
+  private _canvasRect: DOMRect | null = null;
+  private _canvasScaleX = 1;
+  private _canvasScaleY = 1;
+
   // ---------------------------------------------------------------------------
   // Construction / destruction
   // ---------------------------------------------------------------------------
@@ -107,9 +116,21 @@ export class MouseToolManager {
     this._cursor.visible = false;
     this._container.addChild(this._cursor);
 
+    // Cache canvas bounds for coordinate conversion; refresh on resize.
+    this._onResize = () => this._updateCanvasRect();
+    this._updateCanvasRect();
+    window.addEventListener('resize', this._onResize);
+
     // Track cursor position so the cursor indicator follows the mouse.
+    // Convert viewport coords to PixiJS canvas coords using cached rect.
     this._onMouseMove = (e: MouseEvent) => {
-      this._cursor.position.set(e.clientX, e.clientY);
+      const cx = this._canvasRect
+        ? (e.clientX - this._canvasRect.left) * this._canvasScaleX
+        : e.clientX;
+      const cy = this._canvasRect
+        ? (e.clientY - this._canvasRect.top) * this._canvasScaleY
+        : e.clientY;
+      this._cursor.position.set(cx, cy);
       this._cursor.visible = true;
     };
     window.addEventListener('mousemove', this._onMouseMove);
@@ -123,6 +144,7 @@ export class MouseToolManager {
    */
   destroy(): void {
     window.removeEventListener('mousemove', this._onMouseMove);
+    window.removeEventListener('resize', this._onResize);
     this._container.destroy({ children: true });
     this._dragDamageTimers.clear();
   }
@@ -233,16 +255,36 @@ export class MouseToolManager {
   }
 
   /**
-   * Clear all persistent trail graphics.
+   * Clear all persistent trail graphics and the drag-damage throttle map.
    * Called on desktop rebuild to remove accumulated damage trails.
+   *
+   * BUG-004 fix: also clears _dragDamageTimers so stale element IDs from the
+   * previous desktop cycle do not grow the map unbounded.
    */
   clearTrails(): void {
     this._trail.clear();
+    this._dragDamageTimers.clear();
   }
 
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Read the canvas element's bounding rect and derive CSS→canvas scale factors.
+   * Called once at construction and again on every window resize.
+   *
+   * BUG-006/BUG-007 fix: caching here avoids a forced layout read (getBoundingClientRect)
+   * inside the high-frequency mousemove handler.
+   */
+  private _updateCanvasRect(): void {
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      this._canvasRect = canvas.getBoundingClientRect();
+      this._canvasScaleX = canvas.width / this._canvasRect.width;
+      this._canvasScaleY = canvas.height / this._canvasRect.height;
+    }
+  }
 
   /** Redraw the cursor indicator for the currently active tool. */
   private _drawCursor(): void {

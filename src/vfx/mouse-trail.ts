@@ -69,15 +69,24 @@ export class MouseTrail {
   /** Currently live particles being updated each frame. */
   private readonly active: TrailParticle[] = [];
 
-  /** Last known mouse X (canvas/client coords). */
+  /** Last known mouse X (canvas coords, after viewport→canvas conversion). */
   private lastX = 0;
-  /** Last known mouse Y (canvas/client coords). */
+  /** Last known mouse Y (canvas coords, after viewport→canvas conversion). */
   private lastY = 0;
   /** True once the first mousemove has set a valid position. */
   private hasPosition = false;
 
   /** Retained so the exact same function reference is removed on destroy. */
   private readonly _onMouseMove: (e: MouseEvent) => void;
+
+  /** Retained so the exact same function reference is removed on destroy. */
+  private readonly _onResize: () => void;
+
+  // BUG-006/BUG-007 fix: cache canvas bounds so mousemove does not trigger
+  // a layout read (getBoundingClientRect) on every event.
+  private _canvasRect: DOMRect | null = null;
+  private _canvasScaleX = 1;
+  private _canvasScaleY = 1;
 
   // -------------------------------------------------------------------------
   // Constructor
@@ -102,9 +111,21 @@ export class MouseTrail {
       this.pool.push(g);
     }
 
+    // Cache canvas bounds for coordinate conversion; refresh on resize.
+    this._onResize = () => this._updateCanvasRect();
+    this._updateCanvasRect();
+    window.addEventListener('resize', this._onResize);
+
     // Self-wire listener. Store the bound reference for teardown.
+    // Convert viewport coords to PixiJS canvas coords using cached rect.
     this._onMouseMove = (e: MouseEvent) => {
-      this._onMove(e.clientX, e.clientY);
+      const x = this._canvasRect
+        ? (e.clientX - this._canvasRect.left) * this._canvasScaleX
+        : e.clientX;
+      const y = this._canvasRect
+        ? (e.clientY - this._canvasRect.top) * this._canvasScaleY
+        : e.clientY;
+      this._onMove(x, y);
     };
     window.addEventListener('mousemove', this._onMouseMove);
   }
@@ -150,6 +171,7 @@ export class MouseTrail {
    */
   destroy(): void {
     window.removeEventListener('mousemove', this._onMouseMove);
+    window.removeEventListener('resize', this._onResize);
     this.trailContainer.destroy({ children: true });
     this.active.length = 0;
     this.pool.length = 0;
@@ -158,6 +180,22 @@ export class MouseTrail {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Read the canvas element's bounding rect and derive CSS→canvas scale factors.
+   * Called once at construction and again on every window resize.
+   *
+   * BUG-006/BUG-007 fix: caching here avoids a forced layout read inside the
+   * high-frequency mousemove handler.
+   */
+  private _updateCanvasRect(): void {
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      this._canvasRect = canvas.getBoundingClientRect();
+      this._canvasScaleX = canvas.width / this._canvasRect.width;
+      this._canvasScaleY = canvas.height / this._canvasRect.height;
+    }
+  }
 
   /**
    * Called by the mousemove handler. Interpolates spawn positions along the

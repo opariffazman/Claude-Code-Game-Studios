@@ -167,6 +167,7 @@ export class DeskSmasherApp {
         this.spriteParticles.clear();
         this.mouseTools.clearTrails();
       },
+      this.safetyLimiter,
     );
 
     // 14. Wire input -> audio (Sprint 1: keypress = sound) and

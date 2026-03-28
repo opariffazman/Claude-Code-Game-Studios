@@ -43,6 +43,14 @@ export class DesktopManager {
   /** Parallel array: PixiJS Container for each DesktopElement at the same index. */
   private containers: Container[] = [];
 
+  /** Running health totals — updated by buildDesktop() and recordDamage(). */
+  private _totalHealth = 0;
+  private _currentHealth = 0;
+
+  /** Count of active wallpaper damage marks — capped at MAX_DAMAGE_MARKS. */
+  private _damageMarkCount = 0;
+  private static readonly MAX_DAMAGE_MARKS = 50;
+
   private screenW: number;
   private screenH: number;
   private _wallpaperColor: number = WALLPAPER_PALETTES[0].bg;
@@ -125,18 +133,43 @@ export class DesktopManager {
 
   /**
    * Returns a random alive element, or null if all are destroyed.
+   * Zero-allocation: counts then walks the list rather than building a filtered array.
    */
   getRandomAlive(): DesktopElement | null {
-    const alive = this._elements.filter((e) => !e.destroyed);
-    if (alive.length === 0) return null;
-    return alive[Math.floor(Math.random() * alive.length)];
+    let aliveCount = 0;
+    for (const el of this._elements) {
+      if (!el.destroyed) aliveCount++;
+    }
+    if (aliveCount === 0) return null;
+    let target = Math.floor(Math.random() * aliveCount);
+    for (const el of this._elements) {
+      if (!el.destroyed) {
+        if (target === 0) return el;
+        target--;
+      }
+    }
+    return null;
   }
 
-  /** Destruction progress in [0, 1]: 0 = pristine, 1 = fully destroyed. */
+  /**
+   * Destruction progress in [0, 1]: 0 = pristine, 1 = fully destroyed.
+   * Reads from running counters updated by buildDesktop() and recordDamage()
+   * rather than iterating the element list every frame.
+   */
   get destructionProgress(): number {
-    const total = this._elements.reduce((s, e) => s + e.maxHealth, 0);
-    const current = this._elements.reduce((s, e) => s + e.health, 0);
-    return total === 0 ? 0 : 1 - current / total;
+    if (this._totalHealth === 0) return 0;
+    return 1 - (this._currentHealth / this._totalHealth);
+  }
+
+  /**
+   * Record that `amount` health points have been removed from an element.
+   * Must be called from app.ts whenever element.health is decremented so
+   * that destructionProgress stays accurate without a per-frame reduce pass.
+   *
+   * @param amount - Number of health points deducted (default 1).
+   */
+  recordDamage(amount: number = 1): void {
+    this._currentHealth = Math.max(0, this._currentHealth - amount);
   }
 
   /** True when every element has been destroyed. */
@@ -187,6 +220,8 @@ export class DesktopManager {
    * @param y - Wallpaper-space Y coordinate.
    */
   crackWallpaper(x: number, y: number): void {
+    if (this._damageMarkCount >= DesktopManager.MAX_DAMAGE_MARKS) return;
+    this._damageMarkCount++;
     const damageType = Math.floor(Math.random() * 6);
     const mark = new Graphics();
     mark.position.set(x, y);
@@ -350,6 +385,7 @@ export class DesktopManager {
     this.container.removeChildren();
     this._elements = [];
     this.containers = [];
+    this._damageMarkCount = 0;
     this.factory.resetIconCount();
     this.buildDesktop();
   }
@@ -409,6 +445,10 @@ export class DesktopManager {
     this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
     this.buildNotifications(randInt(DESKTOP_CONFIG.NOTIFICATIONS.min, DESKTOP_CONFIG.NOTIFICATIONS.max));
     this.buildWidgets(randInt(DESKTOP_CONFIG.WIDGETS.min, DESKTOP_CONFIG.WIDGETS.max));
+
+    // Initialise cached health counters after all elements are created.
+    this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
+    this._currentHealth = this._totalHealth;
   }
 
   private buildWallpaper(palette: WallpaperPalette): void {
