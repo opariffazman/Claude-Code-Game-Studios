@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "Claude_Code_Game_Studios",
+  "project_id": "3704a7ef-a23e-409f-b50b-1febae2fbcf4"
+}
