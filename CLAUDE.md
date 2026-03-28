@@ -5,13 +5,13 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Technology Stack
 
-- **Engine**: [CHOOSE: Godot 4 / Unity / Unreal Engine 5]
-- **Language**: [CHOOSE: GDScript / C# / C++ / Blueprint]
+- **Engine**: Web (PixiJS 8.17.0)
+- **Language**: TypeScript (strict mode)
 - **Version Control**: Git with trunk-based development
-- **Build System**: [SPECIFY after choosing engine]
-- **Asset Pipeline**: [SPECIFY after choosing engine]
+- **Build System**: Vite
+- **Asset Pipeline**: Vite asset handling + TexturePacker (sprites)
 
-> **Note**: Engine-specialist agents exist for Godot, Unity, and Unreal with
+> **Note**: Engine-specialist agents exist for Godot, Unity, Unreal, and Web with
 > dedicated sub-specialists. Use the set matching your engine.
 
 ## Project Structure
@@ -20,7 +20,7 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Engine Version Reference
 
-@docs/engine-reference/godot/VERSION.md
+@docs/engine-reference/web/pixijs/VERSION.md
 
 ## Technical Preferences
 
