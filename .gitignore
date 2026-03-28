@@ -96,6 +96,11 @@ __pycache__/
 node_modules/
 .npm/
 
+# === Test Artifacts ===
+screenshots/
+test-results/
+.playwright/
+
 # === Archives ===
 *.zip
 *.tar.gz

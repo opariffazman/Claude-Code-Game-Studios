@@ -45,6 +45,7 @@ import { ScreenShake } from './vfx/screen-shake';
 import { MouseTrail } from './vfx/mouse-trail';
 import { ThemeSystem } from './systems/theme-system';
 import { RebuildCycle } from './systems/rebuild-cycle';
+import { ToolIndicator } from './ui/tool-indicator';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
 const RESIZE_DEBOUNCE_MS = 200;
@@ -65,6 +66,7 @@ export class DeskSmasherApp {
   private mouseTools!: MouseToolManager;
   private themeSystem!: ThemeSystem;
   private rebuildCycle!: RebuildCycle;
+  private toolIndicator!: ToolIndicator;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -142,6 +144,9 @@ export class DeskSmasherApp {
     // Mouse tools — lives in uiLayer so the cursor indicator is always on top
     this.mouseTools = new MouseToolManager(uiLayer, this.particles, this.audioManager);
 
+    // Tool indicator — bottom-right corner, above taskbar
+    this.toolIndicator = new ToolIndicator(uiLayer, this.app.screen.width, this.app.screen.height);
+
     // 13. Rebuild cycle — monitors destruction and drives animated theme transitions.
     //     Overlay is added to the stage so it renders above all desktop content.
     this.rebuildCycle = new RebuildCycle(
@@ -193,9 +198,18 @@ export class DeskSmasherApp {
     this.inputManager.onDragEnd((x, y) => {
       this.mouseTools.onDragEnd(x, y, this.desktop.elements);
       this.mouseTools.resetDrag();
+      // Drag does NOT cycle the tool — RMB cycles instead.
     });
 
-    // 16. Debounced resize — rebuild desktop when window dimensions settle
+    // 16. RMB — cycle to next tool with audio feedback. No destruction.
+    this.inputManager.onRightClick((_x, _y) => {
+      if (this.rebuildCycle.isTransitioning) return;
+      this.mouseTools.cycleTool();
+      this.toolIndicator.setTool(this.mouseTools.currentTool);
+      this.audioManager.play('tinkle');
+    });
+
+    // 18. Debounced resize — rebuild desktop when window dimensions settle
     window.addEventListener('resize', () => this.onWindowResize());
 
     const fpsStyle = new TextStyle({ fontSize: 10, fill: 0xffffff, fontFamily: 'monospace' });
@@ -204,7 +218,7 @@ export class DeskSmasherApp {
     fpsText.alpha = 0.4;
     uiLayer.addChild(fpsText);
 
-    // 17. Game loop
+    // 19. Game loop
     this.app.ticker.add((ticker) => {
       if (this.unlocked) return;
       const dt = ticker.deltaMS / 1000;
@@ -216,6 +230,7 @@ export class DeskSmasherApp {
       this.chaosMeter.update();
       this.screenShake.update(this.app!.stage);
       this.rebuildCycle.update(dt);
+      this.toolIndicator.update(dt);
 
       fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
@@ -271,7 +286,7 @@ export class DeskSmasherApp {
       for (const aoeTarget of toolResult.aoeTargets) {
         if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
       }
-      this.mouseTools.cycleTool();
+      // Tool does NOT cycle on LMB — RMB cycles instead (see onRightClick below).
     } else {
       // Empty space — crack wallpaper + tool AoE
       this.desktop.crackWallpaper(x, y);
@@ -281,7 +296,7 @@ export class DeskSmasherApp {
       for (const aoeTarget of toolResult.aoeTargets) {
         if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
       }
-      this.mouseTools.cycleTool();
+      // Tool does NOT cycle on LMB — RMB cycles instead (see onRightClick below).
     }
   }
 
@@ -341,6 +356,7 @@ export class DeskSmasherApp {
       this.resizeTimer = null;
       if (!this.app) return;
       this.desktop.resize(this.app.screen.width, this.app.screen.height);
+      this.toolIndicator.resize(this.app.screen.width, this.app.screen.height);
       this.syncBackground();
     }, RESIZE_DEBOUNCE_MS);
   }

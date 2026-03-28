@@ -31,6 +31,9 @@ export type DragListener = (x: number, y: number) => void;
 /** Callback type for raw key name events (e.g. parent lock). */
 export type KeyRawListener = (key: string) => void;
 
+/** Callback type for right-click events (tool cycling, no destruction). */
+export type RightClickListener = (x: number, y: number) => void;
+
 /** F-key codes that should be blocked */
 const FKEY_CODES: ReadonlySet<string> = new Set([
   'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12',
@@ -59,6 +62,7 @@ export class InputManager {
   private readonly dragListeners: DragListener[] = [];
   private readonly dragEndListeners: DragListener[] = [];
   private readonly keyRawListeners: KeyRawListener[] = [];
+  private readonly rightClickListeners: RightClickListener[] = [];
 
   /** Keys currently held down — keyed by e.code */
   private readonly heldKeys: Set<string> = new Set();
@@ -81,7 +85,7 @@ export class InputManager {
   private readonly _onTouchStart: (e: TouchEvent) => void;
   private readonly _onTouchMove: (e: TouchEvent) => void;
   private readonly _onTouchEnd: (e: TouchEvent) => void;
-  private readonly _onContextMenu: (e: Event) => void;
+  private readonly _onContextMenu: (e: MouseEvent) => void;
   private readonly _onWheel: (e: Event) => void;
 
   /**
@@ -107,7 +111,15 @@ export class InputManager {
     this._onTouchStart = this.handleTouchStart.bind(this);
     this._onTouchMove = this.handleTouchMove.bind(this);
     this._onTouchEnd = this.handleTouchEnd.bind(this);
-    this._onContextMenu = (e: Event) => e.preventDefault();
+    this._onContextMenu = (e: MouseEvent) => {
+      // Always block the browser context menu (design doc §Core Rules).
+      e.preventDefault();
+      // Right click — cycle tool, no destruction.
+      if (!this.enabled) return;
+      for (const handler of this.rightClickListeners) {
+        handler(e.clientX, e.clientY);
+      }
+    };
     this._onWheel = (e: Event) => e.preventDefault();
 
     // Keyboard on window with capture:true so we intercept before any element
@@ -204,6 +216,25 @@ export class InputManager {
    */
   onKeyRaw(handler: (key: string) => void): void {
     this.keyRawListeners.push(handler);
+  }
+
+  /**
+   * Register a callback that fires on right-click (contextmenu event).
+   * The browser context menu is always suppressed regardless of whether
+   * any handlers are registered.
+   * Coordinates are window-relative clientX/Y (not canvas-relative) so
+   * the caller can use them for cursor feedback without needing to convert.
+   * Does NOT fire during disabled state.
+   *
+   * @param handler - Called with (x, y) of the right-click position.
+   *
+   * @example
+   * ```ts
+   * input.onRightClick((x, y) => mouseTools.cycleTool());
+   * ```
+   */
+  onRightClick(handler: RightClickListener): void {
+    this.rightClickListeners.push(handler);
   }
 
   /**
