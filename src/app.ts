@@ -317,6 +317,18 @@ export class DeskSmasherApp {
    * and sprite particles. The active tool handles all visual/audio effects
    * via applyTool(), so we don't add random registry effects on top.
    */
+  /**
+   * Maps each mouse tool to a specific destruction effect name for consistent
+   * visual identity. Hammer always shatters, bomb always explodes, etc.
+   */
+  private static readonly TOOL_EFFECT_MAP: Record<string, string> = {
+    hammer: 'shatter',
+    laser: 'pixelate',
+    bomb: 'explode',
+    freeze: 'shatter',
+    magnet: 'vortex',
+  };
+
   private hitElementToolAware(element: import('./types').DesktopElement): void {
     const container = this.desktop.getContainerForElement(element);
     if (!container) return;
@@ -328,8 +340,21 @@ export class DeskSmasherApp {
     if (element.health <= 0) {
       element.health = 0;
       element.destroyed = true;
+
+      // Use tool-specific destruction effect for consistent visual per tool
+      const toolName = this.mouseTools.currentTool;
+      const effectName = DeskSmasherApp.TOOL_EFFECT_MAP[toolName] || 'shatter';
+      const effect = this.destructionRegistry.get(effectName)
+        ?? this.destructionRegistry.getRandom();
+      effect(element, container, this.particles, this.audioManager);
+
       this.spriteParticles.emit(cx, cy, 8, 'spark');
     } else {
+      // Tool-consistent damage: always use the same damage effect (shake)
+      // rather than random registry picks that look like cycling
+      const dmgEffect = this.damageRegistry.get('damageShake')
+        ?? this.damageRegistry.getRandom();
+      dmgEffect(element, container, this.particles, this.audioManager);
       applyProgressiveDamage(element, container);
       this.spriteParticles.emit(cx, cy, 3, 'dirt');
     }
