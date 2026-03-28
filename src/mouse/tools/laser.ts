@@ -20,26 +20,57 @@ const LASER_CONFIG = {
   BEAM_SEGMENTS: 8,
   /** Vertical spacing between beam segments (px). */
   BEAM_SEGMENT_SPACING: 20,
-  /** Diamond cursor half-width and half-height (px). */
-  CURSOR_HALF: 15,
-  CURSOR_HALF_W: 12,
+  /** Outer reticle circle radius (px). */
+  OUTER_R: 14,
+  /** Inner reticle circle radius (px). */
+  INNER_R: 5,
+  /** Crosshair arm length beyond outer circle (px). */
+  CROSSHAIR_EXT: 4,
+  /** Gap between center and start of crosshair arm (px). */
+  CROSSHAIR_GAP: 6,
 } as const;
 
 export const laserTool: ToolDefinition = {
   name: 'laser',
 
   /**
-   * Draws the green diamond cursor for the laser tool.
+   * Draws a sci-fi targeting reticle: outer circle + crosshair arms + inner ring + center dot.
+   * Total diameter ~28px. White outlines for visibility; bright green fill for glow feel.
    * @param g - Graphics instance owned by MouseToolManager.
    */
   drawCursor(g: Graphics): void {
-    g.poly([
-      0, -LASER_CONFIG.CURSOR_HALF,
-      LASER_CONFIG.CURSOR_HALF_W, 0,
-      0, LASER_CONFIG.CURSOR_HALF,
-      -LASER_CONFIG.CURSOR_HALF_W, 0,
-    ]).stroke({ color: 0x44ff44, width: 2 });
-    g.circle(0, 0, 3).fill({ color: 0x44ff44 });
+    const OR = LASER_CONFIG.OUTER_R;
+    const IR = LASER_CONFIG.INNER_R;
+    const ext = LASER_CONFIG.CROSSHAIR_EXT;
+    const gap = LASER_CONFIG.CROSSHAIR_GAP;
+
+    // White halo behind outer ring.
+    g.circle(0, 0, OR + 2).stroke({ color: 0xffffff, width: 3, alpha: 0.7 });
+
+    // Outer circle — bright green.
+    g.circle(0, 0, OR).stroke({ color: 0x00ff44, width: 2 });
+
+    // Crosshair arms — white backing then green on top.
+    // Four arms: up, down, left, right — each starts at `gap` from center.
+    const arms: [number, number, number, number][] = [
+      [0, -gap, 0, -(OR + ext)],
+      [0,  gap, 0,  OR + ext],
+      [-gap, 0, -(OR + ext), 0],
+      [ gap, 0,  OR + ext,  0],
+    ];
+    for (const [x1, y1, x2, y2] of arms) {
+      g.moveTo(x1, y1).lineTo(x2, y2).stroke({ color: 0xffffff, width: 3 });
+    }
+    for (const [x1, y1, x2, y2] of arms) {
+      g.moveTo(x1, y1).lineTo(x2, y2).stroke({ color: 0x00ff44, width: 1.5 });
+    }
+
+    // Inner ring.
+    g.circle(0, 0, IR).stroke({ color: 0x00ff44, width: 1.5 });
+
+    // Center dot — white core for sharpness.
+    g.circle(0, 0, 2.5).fill({ color: 0xffffff });
+    g.circle(0, 0, 1.5).fill({ color: 0x00ff44 });
   },
 
   /**

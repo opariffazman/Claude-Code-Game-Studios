@@ -33,36 +33,70 @@ const MAGNET_CONFIG = {
   DRAG_PARTICLES: 3,
   /** Particle count on release. */
   FLING_PARTICLES: 20,
-  /** Cursor arm top position y (px). */
-  CURSOR_ARM_TOP: -12,
-  /** Cursor arm bottom position y (px). */
-  CURSOR_ARM_BOTTOM: 4,
-  /** Cursor arm x offset (px). */
-  CURSOR_ARM_X: 10,
+  /** Half-width between the two poles (px — center of each arm). */
+  CURSOR_POLE_X: 9,
+  /** Top of the horseshoe arc (y, px — negative = up). */
+  CURSOR_ARC_TOP: -13,
+  /** Bottom of the straight arm section (y, px). */
+  CURSOR_ARM_BOTTOM: 6,
+  /** Pole cap height (px). */
+  CURSOR_CAP_H: 5,
+  /** Stroke width for the magnet body (px). */
+  CURSOR_STROKE_W: 5,
 } as const;
 
 export const magnetTool: ToolDefinition = {
   name: 'magnet',
 
   /**
-   * Draws the purple U-shape cursor for the magnet tool.
+   * Draws a horseshoe magnet: U-shaped body with a semicircle arc at the top,
+   * left pole capped red, right pole capped blue. White outline. ~28px tall.
    * @param g - Graphics instance owned by MouseToolManager.
    */
   drawCursor(g: Graphics): void {
-    // Left arm
-    g.moveTo(-MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_TOP)
-      .lineTo(-MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM)
-      .stroke({ color: 0xcc44ff, width: 3 });
-    // Right arm
-    g.moveTo(MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_TOP)
-      .lineTo(MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM)
-      .stroke({ color: 0xcc44ff, width: 3 });
-    // Bottom bridge
-    g.moveTo(-MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM)
-      .lineTo(-MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM + 4)
-      .lineTo(MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM + 4)
-      .lineTo(MAGNET_CONFIG.CURSOR_ARM_X, MAGNET_CONFIG.CURSOR_ARM_BOTTOM)
-      .stroke({ color: 0xcc44ff, width: 3 });
+    const px    = MAGNET_CONFIG.CURSOR_POLE_X;
+    const arcY  = MAGNET_CONFIG.CURSOR_ARC_TOP;
+    const armB  = MAGNET_CONFIG.CURSOR_ARM_BOTTOM;
+    const capH  = MAGNET_CONFIG.CURSOR_CAP_H;
+    const sw    = MAGNET_CONFIG.CURSOR_STROKE_W;
+    const halfW = sw / 2;
+
+    // --- White outline layer (drawn first, slightly wider) ---
+
+    // Left arm outline.
+    g.moveTo(-px, arcY).lineTo(-px, armB).stroke({ color: 0xffffff, width: sw + 3 });
+    // Right arm outline.
+    g.moveTo(px, arcY).lineTo(px, armB).stroke({ color: 0xffffff, width: sw + 3 });
+    // Arc outline connecting tops — approximated with a semicircle via arc.
+    // PixiJS v8 arc: arc(cx, cy, r, startAngle, endAngle, anticlockwise)
+    g.moveTo(-px, arcY)
+      .arc(0, arcY, px, Math.PI, 0, true)
+      .stroke({ color: 0xffffff, width: sw + 3 });
+
+    // Left pole cap outline.
+    g.rect(-px - halfW - 1.5, armB - 1, sw + 3, capH + 2).fill({ color: 0xffffff });
+    // Right pole cap outline.
+    g.rect(px - halfW - 1.5, armB - 1, sw + 3, capH + 2).fill({ color: 0xffffff });
+
+    // --- Colored body layer ---
+
+    // Left arm — silver-gray body.
+    g.moveTo(-px, arcY).lineTo(-px, armB).stroke({ color: 0xaaaacc, width: sw });
+    // Right arm — silver-gray body.
+    g.moveTo(px, arcY).lineTo(px, armB).stroke({ color: 0xaaaacc, width: sw });
+    // Arc — silver-gray.
+    g.moveTo(-px, arcY)
+      .arc(0, arcY, px, Math.PI, 0, true)
+      .stroke({ color: 0xaaaacc, width: sw });
+
+    // Left (south) pole cap — RED.
+    g.rect(-px - halfW, armB, sw, capH).fill({ color: 0xff2222 });
+    // Right (south) pole cap — BLUE.
+    g.rect(px - halfW, armB, sw, capH).fill({ color: 0x2266ff });
+
+    // Pole cap text-like highlight strips.
+    g.rect(-px - halfW + 1, armB + 1, sw - 2, 2).fill({ color: 0xff8888, alpha: 0.7 });
+    g.rect(px - halfW + 1, armB + 1, sw - 2, 2).fill({ color: 0x88aaff, alpha: 0.7 });
   },
 
   /**

@@ -198,12 +198,8 @@ export class MouseToolManager {
       return this._checkDragHits(x, y, allElements);
     }
 
-    // Draw trail segment.
-    const style = MOUSE_TOOL_CONFIG.TRAIL_STYLES[this.currentTool];
-    this._trail
-      .moveTo(this._lastDragX, this._lastDragY)
-      .lineTo(x, y)
-      .stroke({ color: style.color, width: style.width, alpha: style.alpha });
+    // Draw tool-specific trail segment.
+    this._drawTrailSegment(this._lastDragX, this._lastDragY, x, y);
 
     this._lastDragX = x;
     this._lastDragY = y;
@@ -252,6 +248,113 @@ export class MouseToolManager {
   private _drawCursor(): void {
     this._cursor.clear();
     TOOLS[this._currentIndex].drawCursor(this._cursor);
+  }
+
+  /**
+   * Draw one trail segment from (x0,y0) to (x1,y1) using the active tool's
+   * distinctive visual style.
+   *
+   * Hammer  — thick jagged 3-segment line with random lateral offsets.
+   * Laser   — glow doublet: wide dim green behind, thin bright green on top.
+   * Bomb    — dotted pattern: evenly-spaced filled circles along the path.
+   * Freeze  — wide frosted band + white speckles scattered along the path.
+   * Magnet  — electric wavy arc using sine offsets perpendicular to the path.
+   */
+  private _drawTrailSegment(x0: number, y0: number, x1: number, y1: number): void {
+    const tool = this.currentTool;
+
+    if (tool === 'hammer') {
+      // Three sub-segments with random lateral offsets for a jagged strike look.
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      // Perpendicular unit vector.
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len;
+      const ny =  dx / len;
+      const jitter = () => (Math.random() - 0.5) * 10;
+      const mx1 = x0 + dx * 0.33 + nx * jitter();
+      const my1 = y0 + dy * 0.33 + ny * jitter();
+      const mx2 = x0 + dx * 0.66 + nx * jitter();
+      const my2 = y0 + dy * 0.66 + ny * jitter();
+      this._trail
+        .moveTo(x0, y0)
+        .lineTo(mx1, my1)
+        .lineTo(mx2, my2)
+        .lineTo(x1, y1)
+        .stroke({ color: 0xff6644, width: 6, alpha: 0.55 });
+
+    } else if (tool === 'laser') {
+      // Glow doublet: wide dim green halo, then thin bright green core.
+      this._trail
+        .moveTo(x0, y0).lineTo(x1, y1)
+        .stroke({ color: 0x44ff44, width: 8, alpha: 0.2 });
+      this._trail
+        .moveTo(x0, y0).lineTo(x1, y1)
+        .stroke({ color: 0xaaffaa, width: 1.5, alpha: 0.9 });
+
+    } else if (tool === 'bomb') {
+      // Dotted pattern: circles spaced every 8px along the path.
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
+      const step = 8;
+      const count = Math.max(1, Math.floor(segLen / step));
+      for (let i = 0; i <= count; i++) {
+        const t = i / count;
+        const cx = x0 + dx * t;
+        const cy = y0 + dy * t;
+        this._trail.circle(cx, cy, 3).fill({ color: 0xff8800, alpha: 0.5 });
+      }
+
+    } else if (tool === 'freeze') {
+      // Wide frosted band (semi-transparent), then white speckles.
+      this._trail
+        .moveTo(x0, y0).lineTo(x1, y1)
+        .stroke({ color: 0x88ccff, width: 12, alpha: 0.25 });
+      this._trail
+        .moveTo(x0, y0).lineTo(x1, y1)
+        .stroke({ color: 0xddeeff, width: 3, alpha: 0.45 });
+      // Scatter a few white speckle dots along the segment.
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / segLen;
+      const ny =  dx / segLen;
+      const speckleCount = Math.max(2, Math.floor(segLen / 14));
+      for (let i = 0; i < speckleCount; i++) {
+        const t = (i + 0.5) / speckleCount;
+        const offset = (Math.random() - 0.5) * 8;
+        const sx = x0 + dx * t + nx * offset;
+        const sy = y0 + dy * t + ny * offset;
+        this._trail.circle(sx, sy, 1.5).fill({ color: 0xffffff, alpha: 0.7 });
+      }
+
+    } else {
+      // Magnet — electric wavy arc using sine offsets perpendicular to the path.
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / segLen;
+      const ny =  dx / segLen;
+      const wavePoints: number[] = [x0, y0];
+      const steps = Math.max(4, Math.floor(segLen / 6));
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const wave = Math.sin(t * Math.PI * 4) * 5;
+        wavePoints.push(
+          x0 + dx * t + nx * wave,
+          y0 + dy * t + ny * wave,
+        );
+      }
+      wavePoints.push(x1, y1);
+      // Draw as a polyline by chaining moveTo/lineTo pairs.
+      for (let i = 0; i < wavePoints.length - 2; i += 2) {
+        this._trail
+          .moveTo(wavePoints[i], wavePoints[i + 1])
+          .lineTo(wavePoints[i + 2], wavePoints[i + 3])
+          .stroke({ color: 0xdd88ff, width: 2.5, alpha: 0.6 });
+      }
+    }
   }
 
   /**

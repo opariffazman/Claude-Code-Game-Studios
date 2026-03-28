@@ -51,8 +51,15 @@ export class AudioManager {
    * Safe to call multiple times.
    */
   ensureContext(): void {
-    if (this.context) return;
+    if (this.context) {
+      // Resume if suspended (browser autoplay policy — especially Firefox)
+      if (this.context.state === 'suspended') {
+        this.context.resume().catch(() => {});
+      }
+      return;
+    }
 
+    // Create context — some browsers (Firefox) require this inside a user gesture
     this.context = new AudioContext();
     this.masterGain = this.context.createGain();
 
@@ -61,6 +68,24 @@ export class AudioManager {
     this.masterGain.gain.value = clamped;
 
     this.masterGain.connect(this.context.destination);
+
+    // Resume immediately (may be created in suspended state on Firefox)
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {});
+    }
+
+    // Firefox workaround: also listen for user interaction to retry resume
+    const resumeOnInteraction = () => {
+      if (this.context && this.context.state === 'suspended') {
+        this.context.resume().catch(() => {});
+      }
+      if (this.context && this.context.state === 'running') {
+        document.removeEventListener('click', resumeOnInteraction);
+        document.removeEventListener('keydown', resumeOnInteraction);
+      }
+    };
+    document.addEventListener('click', resumeOnInteraction);
+    document.addEventListener('keydown', resumeOnInteraction);
   }
 
   /**

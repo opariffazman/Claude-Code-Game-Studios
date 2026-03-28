@@ -25,10 +25,12 @@ const FREEZE_CONFIG = {
   CLICK_PARTICLES: 15,
   /** Particle count per drag frame. */
   DRAG_PARTICLES: 5,
-  /** Snowflake cursor arm count. */
+  /** Snowflake arm count (always 6 for a real snowflake). */
   CURSOR_ARMS: 6,
-  /** Snowflake arm length (px). */
-  CURSOR_ARM_LENGTH: 14,
+  /** Snowflake main arm length from center (px). */
+  CURSOR_ARM_LENGTH: 15,
+  /** Barb length perpendicular to each arm, placed at midpoint (px). */
+  CURSOR_BARB_LENGTH: 6,
   /** Center dot radius (px). */
   CURSOR_DOT: 3,
 } as const;
@@ -37,19 +39,69 @@ export const freezeTool: ToolDefinition = {
   name: 'freeze',
 
   /**
-   * Draws the blue snowflake cursor for the freeze tool.
+   * Draws a proper snowflake: 6 main arms radiating from center, each with two
+   * perpendicular barbs at the midpoint. White outline + light-blue fill for
+   * visibility. Total diameter ~30px.
    * @param g - Graphics instance owned by MouseToolManager.
    */
   drawCursor(g: Graphics): void {
+    const armLen  = FREEZE_CONFIG.CURSOR_ARM_LENGTH;
+    const barbLen = FREEZE_CONFIG.CURSOR_BARB_LENGTH;
+    const mid     = armLen * 0.5;
+
     for (let i = 0; i < FREEZE_CONFIG.CURSOR_ARMS; i++) {
       const angle = (i / FREEZE_CONFIG.CURSOR_ARMS) * Math.PI * 2;
-      g.moveTo(0, 0)
-        .lineTo(
-          Math.cos(angle) * FREEZE_CONFIG.CURSOR_ARM_LENGTH,
-          Math.sin(angle) * FREEZE_CONFIG.CURSOR_ARM_LENGTH,
-        )
-        .stroke({ color: 0x44ccff, width: 2 });
+      const ca = Math.cos(angle);
+      const sa = Math.sin(angle);
+
+      // Perpendicular direction for barbs.
+      const bp = angle + Math.PI / 2;
+      const cb = Math.cos(bp);
+      const sb = Math.sin(bp);
+
+      // Tip and midpoint of this arm.
+      const tipX = ca * armLen;
+      const tipY = sa * armLen;
+      const midX = ca * mid;
+      const midY = sa * mid;
+
+      // White backing — main arm.
+      g.moveTo(0, 0).lineTo(tipX, tipY).stroke({ color: 0xffffff, width: 3 });
+
+      // Left barb (white backing).
+      g.moveTo(midX, midY)
+        .lineTo(midX + cb * barbLen, midY + sb * barbLen)
+        .stroke({ color: 0xffffff, width: 3 });
+      // Right barb (white backing).
+      g.moveTo(midX, midY)
+        .lineTo(midX - cb * barbLen, midY - sb * barbLen)
+        .stroke({ color: 0xffffff, width: 3 });
     }
+
+    // Colored pass on top — light blue main arms.
+    for (let i = 0; i < FREEZE_CONFIG.CURSOR_ARMS; i++) {
+      const angle = (i / FREEZE_CONFIG.CURSOR_ARMS) * Math.PI * 2;
+      const ca = Math.cos(angle);
+      const sa = Math.sin(angle);
+      const bp = angle + Math.PI / 2;
+      const cb = Math.cos(bp);
+      const sb = Math.sin(bp);
+      const mid2X = ca * mid;
+      const mid2Y = sa * mid;
+
+      g.moveTo(0, 0)
+        .lineTo(ca * armLen, sa * armLen)
+        .stroke({ color: 0x88ddff, width: 2 });
+      g.moveTo(mid2X, mid2Y)
+        .lineTo(mid2X + cb * barbLen, mid2Y + sb * barbLen)
+        .stroke({ color: 0xaaeeff, width: 1.5 });
+      g.moveTo(mid2X, mid2Y)
+        .lineTo(mid2X - cb * barbLen, mid2Y - sb * barbLen)
+        .stroke({ color: 0xaaeeff, width: 1.5 });
+    }
+
+    // Center dot — white core + bright blue.
+    g.circle(0, 0, FREEZE_CONFIG.CURSOR_DOT + 1).fill({ color: 0xffffff });
     g.circle(0, 0, FREEZE_CONFIG.CURSOR_DOT).fill({ color: 0x44ccff });
   },
 

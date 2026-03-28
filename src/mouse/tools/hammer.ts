@@ -22,27 +22,50 @@ const HAMMER_CONFIG = {
   CLICK_PARTICLES: 20,
   /** Particle count per drag frame. */
   DRAG_PARTICLES: 6,
-  /** Cursor indicator radius (px). */
-  CURSOR_RADIUS: 18,
-  /** Cursor crosshair half-length (px). */
-  CROSSHAIR_HALF: 12,
+  /** Hammer head width (px). */
+  HEAD_W: 22,
+  /** Hammer head height (px). */
+  HEAD_H: 12,
+  /** Handle width (px). */
+  HANDLE_W: 6,
+  /** Handle height (px). */
+  HANDLE_H: 18,
 } as const;
 
 export const hammerTool: ToolDefinition = {
   name: 'hammer',
 
   /**
-   * Draws the red crosshair cursor for the hammer tool.
+   * Draws a hammer shape: rectangular head + handle, centered at (0,0).
+   * Total height ~30px. White outline for visibility on any background.
    * @param g - Graphics instance owned by MouseToolManager (cleared before each call).
    */
   drawCursor(g: Graphics): void {
-    g.circle(0, 0, HAMMER_CONFIG.CURSOR_RADIUS).stroke({ color: 0xff4444, width: 3 });
-    g.moveTo(-HAMMER_CONFIG.CROSSHAIR_HALF, 0)
-      .lineTo(HAMMER_CONFIG.CROSSHAIR_HALF, 0)
-      .stroke({ color: 0xff4444, width: 2 });
-    g.moveTo(0, -HAMMER_CONFIG.CROSSHAIR_HALF)
-      .lineTo(0, HAMMER_CONFIG.CROSSHAIR_HALF)
-      .stroke({ color: 0xff4444, width: 2 });
+    const hw = HAMMER_CONFIG.HEAD_W;
+    const hh = HAMMER_CONFIG.HEAD_H;
+    const hdw = HAMMER_CONFIG.HANDLE_W;
+    const hdh = HAMMER_CONFIG.HANDLE_H;
+
+    // Position head at top, handle hanging below — total span ~30px.
+    const headTop = -15;
+    const headLeft = -hw / 2;
+    const handleTop = headTop + hh;
+
+    // White outline pass (drawn slightly larger).
+    g.rect(headLeft - 2, headTop - 2, hw + 4, hh + 4).fill({ color: 0xffffff });
+    g.rect(-hdw / 2 - 2, handleTop - 1, hdw + 4, hdh + 2).fill({ color: 0xffffff });
+
+    // Hammer head — deep orange fill.
+    g.rect(headLeft, headTop, hw, hh).fill({ color: 0xff5500 });
+
+    // Face highlight on head (lighter strip at top).
+    g.rect(headLeft + 2, headTop + 2, hw - 4, 4).fill({ color: 0xff8844 });
+
+    // Handle — dark wood brown.
+    g.rect(-hdw / 2, handleTop, hdw, hdh).fill({ color: 0x7a4400 });
+
+    // Handle highlight.
+    g.rect(-hdw / 2 + 1, handleTop + 2, 2, hdh - 4).fill({ color: 0xaa6622 });
   },
 
   /**

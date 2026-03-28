@@ -29,23 +29,57 @@ const BOMB_CONFIG = {
   DRAG_PARTICLES: 5,
   /** Particle count on drag-end explosion. */
   EXPLODE_PARTICLES: 35,
-  /** Cursor indicator radius (px). */
-  CURSOR_RADIUS: 14,
-  /** Center dot radius (px). */
-  CURSOR_DOT: 4,
+  /** Bomb body radius (px). */
+  BODY_R: 11,
+  /** Fuse stem height above body (px). */
+  FUSE_H: 7,
+  /** Fuse stem x offset (px). */
+  FUSE_X: 3,
+  /** Spark dot radius (px). */
+  SPARK_R: 3,
 } as const;
 
 export const bombTool: ToolDefinition = {
   name: 'bomb',
 
   /**
-   * Draws the orange circle cursor for the bomb tool.
+   * Draws a round bomb: dark sphere body + white highlight + curved fuse stem + orange spark.
+   * Total height ~26px (body 22px diameter + 7px fuse + 3px spark above).
+   * White outline on body for visibility against any background.
    * @param g - Graphics instance owned by MouseToolManager.
    */
   drawCursor(g: Graphics): void {
-    g.circle(0, 0, BOMB_CONFIG.CURSOR_RADIUS).fill({ color: 0xff8800, alpha: 0.3 });
-    g.circle(0, 0, BOMB_CONFIG.CURSOR_RADIUS).stroke({ color: 0xff8800, width: 2 });
-    g.circle(0, 0, BOMB_CONFIG.CURSOR_DOT).fill({ color: 0xff8800 });
+    const br = BOMB_CONFIG.BODY_R;
+    const fx = BOMB_CONFIG.FUSE_X;
+    const fh = BOMB_CONFIG.FUSE_H;
+    const sr = BOMB_CONFIG.SPARK_R;
+
+    // Body center — offset slightly downward so fuse extends above.
+    const bodyY = 3;
+
+    // White outline halo.
+    g.circle(0, bodyY, br + 2).fill({ color: 0xffffff });
+
+    // Main body — near-black with slight warm tint.
+    g.circle(0, bodyY, br).fill({ color: 0x222222 });
+
+    // Specular highlight — white oval in upper-left of body.
+    g.ellipse(-br * 0.3, bodyY - br * 0.35, br * 0.28, br * 0.2).fill({ color: 0xffffff, alpha: 0.6 });
+
+    // Fuse stem — short angled line.
+    const fuseBaseX = fx;
+    const fuseBaseY = bodyY - br + 1;
+    const fuseTipX  = fx + 2;
+    const fuseTipY  = fuseBaseY - fh;
+    g.moveTo(fuseBaseX, fuseBaseY)
+      .lineTo(fuseTipX, fuseTipY)
+      .stroke({ color: 0x886600, width: 2.5 });
+
+    // Spark at tip — white backing + orange center.
+    g.circle(fuseTipX, fuseTipY - sr, sr + 1.5).fill({ color: 0xffffff });
+    g.circle(fuseTipX, fuseTipY - sr, sr).fill({ color: 0xff8800 });
+    // Inner bright spark core.
+    g.circle(fuseTipX, fuseTipY - sr, 1.5).fill({ color: 0xffff88 });
   },
 
   /**
