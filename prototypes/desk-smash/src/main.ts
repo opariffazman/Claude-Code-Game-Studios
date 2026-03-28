@@ -113,10 +113,13 @@ async function main() {
           if (!aoeTarget.destroyed) effects.applyRandom(aoeTarget);
         }
 
+        mouseTools.cycleTool();
+
         // Auto-rebuild when everything is destroyed
         if (desktop.allDestroyed) {
           setTimeout(() => {
             desktop.reset();
+            mouseTools.clearTrails();
             app.renderer.background.color = desktop.wallpaperColor;
           }, 800);
         }
@@ -126,11 +129,13 @@ async function main() {
         particles.emit(x, y, 12, { speed: 150, gravity: 200, life: 0.5, spread: Math.PI * 2, scale: 0.7 });
         audio.play('crack');
 
-        // Apply tool even on empty space (cycles cursor + bomb/magnet AoE still work)
+        // Apply tool even on empty space (bomb/magnet AoE still work)
         const toolResult = mouseTools.applyTool(x, y, null, desktop.elements);
         for (const aoeTarget of toolResult.aoeTargets) {
           if (!aoeTarget.destroyed) effects.applyRandom(aoeTarget);
         }
+
+        mouseTools.cycleTool();
       }
     } else {
       // Key: target random element
@@ -156,6 +161,7 @@ async function main() {
         if (desktop.allDestroyed) {
           setTimeout(() => {
             desktop.reset();
+            mouseTools.clearTrails();
             app.renderer.background.color = desktop.wallpaperColor;
           }, 800);
         }
@@ -172,10 +178,6 @@ async function main() {
     const hitElements = mouseTools.applyDrag(x, y, desktop.elements);
     for (const el of hitElements) {
       if (!el.destroyed) effects.applyRandom(el);
-    }
-    // ~10% of drag frames leave a wallpaper crack mark
-    if (Math.random() < 0.1) {
-      desktop.crackWallpaper(x, y);
     }
   });
 

@@ -14,12 +14,16 @@ const TOOLS: MouseTool[] = ['hammer', 'laser', 'bomb', 'freeze', 'magnet'];
 export class MouseTools {
   private currentIndex = 0;
   private cursor: Graphics;
+  private trail: Graphics;
   private container: Container;
   private particles: ParticleManager;
   private audio: AudioEngine;
   private dragDamageTimers = new Map<string, number>();
   private lastX = 0;
   private lastY = 0;
+  private lastDragX = 0;
+  private lastDragY = 0;
+  private hasDragStart = false;
 
   constructor(parent: Container, particles: ParticleManager, audio: AudioEngine) {
     this.container = new Container();
@@ -27,6 +31,11 @@ export class MouseTools {
     parent.addChild(this.container);
     this.particles = particles;
     this.audio = audio;
+
+    // Persistent trail drawn on drag — cleared on desktop rebuild
+    this.trail = new Graphics();
+    this.trail.label = 'drag-trail';
+    this.container.addChild(this.trail);
 
     // Custom cursor that shows current tool
     this.cursor = new Graphics();
@@ -44,6 +53,11 @@ export class MouseTools {
 
   get currentTool(): MouseTool {
     return TOOLS[this.currentIndex];
+  }
+
+  /** Advance to the next tool — called by main.ts after a click or drag completes. */
+  cycleTool(): void {
+    this.nextTool();
   }
 
   /** Cycle to next tool */
@@ -190,11 +204,20 @@ export class MouseTools {
         break;
     }
 
-    this.nextTool(); // Cycle to next tool
     return result;
   }
 
   get lastPosition() { return { x: this.lastX, y: this.lastY }; }
+
+  /** Reset drag state — called on mouseup so the next drag starts fresh. */
+  resetDrag(): void {
+    this.hasDragStart = false;
+  }
+
+  /** Clear all persistent trail graphics — called on desktop rebuild. */
+  clearTrails(): void {
+    this.trail.clear();
+  }
 
   /** Called every frame while mouse button is held and moving.
    *  Returns elements whose bounds the cursor crossed (throttled to 200ms per element).
@@ -203,28 +226,54 @@ export class MouseTools {
     this.lastX = x;
     this.lastY = y;
 
+    // Draw a persistent trail line segment from the last drag position to the current one.
+    // The line style varies per tool to reinforce the tool's identity.
+    if (!this.hasDragStart) {
+      this.hasDragStart = true;
+      this.lastDragX = x;
+      this.lastDragY = y;
+      return []; // First point — no segment to draw yet
+    }
+
+    const toolColors: Record<string, { color: number; width: number; alpha: number }> = {
+      'hammer': { color: 0xff6644, width: 6, alpha: 0.5 },   // Orange scratch
+      'laser':  { color: 0x44ff44, width: 3, alpha: 0.7 },   // Green beam burn
+      'bomb':   { color: 0xff8800, width: 4, alpha: 0.4 },   // Orange fuse trail
+      'freeze': { color: 0x88ccff, width: 8, alpha: 0.4 },   // Wide ice streak
+      'magnet': { color: 0xcc44ff, width: 5, alpha: 0.3 },   // Purple energy line
+    };
+
+    const style = toolColors[this.currentTool] ?? toolColors['hammer'];
+    this.trail
+      .moveTo(this.lastDragX, this.lastDragY)
+      .lineTo(x, y)
+      .stroke({ color: style.color, width: style.width, alpha: style.alpha });
+
+    this.lastDragX = x;
+    this.lastDragY = y;
+
     const hitElements: DesktopElement[] = [];
 
     switch (this.currentTool) {
       case 'hammer':
         // SWEEP: damage any element the cursor passes over + leave scratch trail
-        this.particles.emit(x, y, 3, { speed: 80, gravity: 100, life: 0.2, scale: 0.4 });
+        this.particles.emit(x, y, 6, { speed: 150, gravity: 100, life: 0.2, scale: 0.4 });
         break;
 
       case 'laser':
         // BEAM: continuous vertical beam particles at cursor
-        this.particles.emit(x, y - 30, 2, { speed: 30, gravity: -80, life: 0.2, spread: 0.2, scale: 0.3 });
-        this.particles.emit(x, y, 1, { speed: 20, gravity: 0, life: 0.15, scale: 0.5 });
+        this.particles.emit(x, y - 30, 4, { speed: 30, gravity: -80, life: 0.2, spread: 0.2, scale: 0.3 });
+        this.particles.emit(x, y, 2, { speed: 20, gravity: 0, life: 0.15, scale: 0.5 });
         break;
 
       case 'bomb':
         // FUSE TRAIL: leave a trail of sparks that will explode on mouseup
-        this.particles.emit(x, y, 2, { speed: 40, gravity: 50, life: 0.4, scale: 0.3 });
+        this.particles.emit(x, y, 5, { speed: 40, gravity: 50, life: 0.4, scale: 0.3 });
         break;
 
       case 'freeze':
         // ICE TRAIL: freeze particles along drag path
-        this.particles.emit(x, y, 2, { speed: 30, gravity: -20, life: 0.5, spread: Math.PI, scale: 0.4 });
+        this.particles.emit(x, y, 5, { speed: 30, gravity: -20, life: 0.5, spread: Math.PI, scale: 0.4 });
         break;
 
       case 'magnet':
@@ -241,7 +290,7 @@ export class MouseTools {
             el.vy += Math.sin(angle) * force;
           }
         }
-        this.particles.emit(x, y, 1, { speed: 20, gravity: 0, life: 0.3, scale: 0.3 });
+        this.particles.emit(x, y, 3, { speed: 20, gravity: 0, life: 0.3, scale: 0.3 });
         break;
     }
 
@@ -269,6 +318,7 @@ export class MouseTools {
 
   /** Called on mouseup — bomb explodes at release point, magnet flings outward. */
   onDragEnd(x: number, y: number, allElements: DesktopElement[]): void {
+    this.resetDrag();
     switch (this.currentTool) {
       case 'bomb':
         // EXPLODE at release point
@@ -300,5 +350,8 @@ export class MouseTools {
         this.particles.emit(x, y, 20, { speed: 300, gravity: 150, life: 0.6, spread: Math.PI * 2, scale: 1.0 });
         break;
     }
+
+    // Cycle tool after drag interaction completes
+    this.nextTool();
   }
 }

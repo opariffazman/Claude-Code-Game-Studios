@@ -19,7 +19,6 @@ export class InputCapture {
   private mouseUpHandlers: (() => void)[] = [];
   private enabled = true;
   private heldKeys = new Set<string>();
-  private isDragging = false;
 
   constructor(canvas: HTMLCanvasElement) {
     // Keyboard — only fire on fresh key press, not hold/repeat
@@ -59,31 +58,60 @@ export class InputCapture {
       if (BLOCKED_KEYS.has(e.key)) e.preventDefault();
     }, { capture: true });
 
-    // Mouse click + drag start
+    // Mouse events — separate click from drag
+    let mouseDownX = 0;
+    let mouseDownY = 0;
+    let dragDistance = 0;
+    let isDragging = false;
+
     canvas.addEventListener('mousedown', (e) => {
       e.preventDefault();
       if (!this.enabled) return;
-      this.isDragging = true;
+      mouseDownX = e.clientX;
+      mouseDownY = e.clientY;
+      dragDistance = 0;
+      isDragging = true;
+
+      // Notify mouseDown handlers (for tool preview etc)
       for (const handler of this.mouseDownHandlers) {
         handler(e.clientX, e.clientY);
       }
-      for (const handler of this.handlers) {
-        handler('click', e.clientX, e.clientY);
-      }
     });
 
-    canvas.addEventListener('mousemove', (e) => {
-      e.preventDefault();
-      if (!this.enabled || !this.isDragging) return;
-      for (const handler of this.dragHandlers) {
-        handler(e.clientX, e.clientY);
+    window.addEventListener('mousemove', (e) => {
+      if (!this.enabled) return;
+
+      if (isDragging) {
+        const dx = e.clientX - mouseDownX;
+        const dy = e.clientY - mouseDownY;
+        dragDistance = Math.sqrt(dx * dx + dy * dy);
+
+        // Only fire drag if moved more than 5px (prevents accidental drags)
+        if (dragDistance >= 5) {
+          for (const handler of this.dragHandlers) {
+            handler(e.clientX, e.clientY);
+          }
+        }
       }
     });
 
     // Mouse drag end — listen on window so releasing outside canvas is caught
-    window.addEventListener('mouseup', () => {
-      if (!this.isDragging) return;
-      this.isDragging = false;
+    window.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      const wasDragging = dragDistance >= 5;
+      isDragging = false;
+      dragDistance = 0;
+
+      if (!this.enabled) return;
+
+      if (!wasDragging) {
+        // Short movement — fire as click input
+        for (const handler of this.handlers) {
+          handler('click', e.clientX, e.clientY);
+        }
+      }
+
+      // Always fire mouseUp (drag end effects)
       for (const handler of this.mouseUpHandlers) {
         handler();
       }
