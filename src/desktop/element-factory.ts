@@ -8,63 +8,30 @@
  * returned container and primary graphics object are handed to DesktopManager,
  * which owns lifecycle (add/remove from stage).
  *
- * Six generic icon symbol shapes are used instead of per-label art so the icon
- * set remains visually varied without needing individual assets.
+ * Icons are drawn via DESKTOP_ICONS / NOTIFICATION_ICONS definitions from
+ * src/assets/svg-icons.ts — no emojis or external assets.
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { ICON_COLORS, STICKY_COLORS, TITLEBAR_COLORS, NOTIF_TEXTS, rand, pick } from './element-types';
+import { DESKTOP_ICONS, NOTIFICATION_ICONS } from '../assets/svg-icons';
 
 // ---------------------------------------------------------------------------
-// Internal symbol drawing (6 generic shapes, no per-label art)
+// Emoji-to-notification-icon key mapping
+// Maps the emoji strings stored in NOTIF_TEXTS to NOTIFICATION_ICONS keys.
 // ---------------------------------------------------------------------------
 
-const SYMBOL_TYPES = ['lines', 'circle', 'triangle', 'dotgrid', 'square', 'star'] as const;
-type SymbolType = typeof SYMBOL_TYPES[number];
-
-/**
- * Draws one of six generic symbols into a Graphics at (cx, cy).
- * Used for icon interiors — keeps visual variety without per-label art.
- *
- * @param g   - Target Graphics instance (PixiJS v8 chaining).
- * @param cx  - Centre x in local space.
- * @param cy  - Centre y in local space.
- * @param type - Which symbol shape to draw.
- */
-function drawGenericSymbol(g: Graphics, cx: number, cy: number, type: SymbolType): void {
-  switch (type) {
-    case 'lines':
-      g.rect(cx - 12, cy - 8, 24, 4).fill(0xffffff)
-       .rect(cx - 12, cy - 1, 24, 4).fill(0xffffff)
-       .rect(cx - 12, cy + 6, 24, 4).fill(0xffffff);
-      break;
-    case 'circle':
-      g.circle(cx, cy, 14).fill({ color: 0xffffff, alpha: 0.8 });
-      break;
-    case 'triangle':
-      g.poly([cx, cy - 14, cx - 13, cy + 10, cx + 13, cy + 10]).fill(0xffffff);
-      break;
-    case 'dotgrid':
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          g.circle(cx - 8 + col * 8, cy - 8 + row * 8, 3).fill(0xffffff);
-        }
-      }
-      break;
-    case 'square':
-      g.rect(cx - 11, cy - 11, 22, 22).fill(0xffffff);
-      break;
-    case 'star': {
-      const pts: number[] = [];
-      for (let p = 0; p < 10; p++) {
-        const angle = (p * Math.PI) / 5 - Math.PI / 2;
-        const r = p % 2 === 0 ? 14 : 6;
-        pts.push(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
-      }
-      g.poly(pts).fill(0xffffff);
-      break;
-    }
-  }
-}
+const EMOJI_TO_NOTIF_KEY: Record<string, string> = {
+  '📧': 'email',
+  '🔄': 'update',
+  '📅': 'calendar',
+  '🔋': 'battery',
+  '✅': 'check',
+  '🍕': 'food',
+  '💬': 'message',
+  '📸': 'camera',
+  '🖨️': 'printer',
+  '📶': 'signal',
+};
 
 // ---------------------------------------------------------------------------
 // ElementFactory
@@ -109,11 +76,11 @@ export class ElementFactory {
       .stroke({ color: 0xffffff, width: 2, alpha: 0.5 });
     container.addChild(gfx);
 
-    const symbolType = SYMBOL_TYPES[this.iconCount % SYMBOL_TYPES.length];
     this.iconCount++;
+    const iconDef = DESKTOP_ICONS[label] ?? DESKTOP_ICONS['Docs']!;
     const sym = new Graphics();
-    sym.alpha = 0.8;
-    drawGenericSymbol(sym, size / 2, size / 2, symbolType);
+    sym.alpha = 0.85;
+    iconDef.draw(sym, size / 2, size / 2, size * 0.45, 0xffffff);
     container.addChild(sym);
 
     const labelStyle = new TextStyle({
@@ -267,10 +234,13 @@ export class ElementFactory {
       .stroke({ color: 0xffffff, width: 1, alpha: 0.3 });
     container.addChild(gfx);
 
-    const iconStyle = new TextStyle({ fontSize: 20, fontFamily: 'sans-serif' });
-    const iconTxt = new Text({ text: icon, style: iconStyle });
-    iconTxt.position.set(10, 12);
-    container.addChild(iconTxt);
+    const notifKey = EMOJI_TO_NOTIF_KEY[icon] ?? 'email';
+    const notifDef = NOTIFICATION_ICONS[notifKey] ?? NOTIFICATION_ICONS['email']!;
+    const iconGfx = new Graphics();
+    // Draw notification icon centred in a 26x26 area at left of pill (offset 10,12)
+    notifDef.draw(iconGfx, 10 + 13, 12 + 13, 22, 0xffffff);
+    iconGfx.alpha = 0.9;
+    container.addChild(iconGfx);
 
     const textStyle = new TextStyle({ fontSize: 12, fill: 0xffffff, fontFamily: 'sans-serif' });
     const txt = new Text({ text, style: textStyle });

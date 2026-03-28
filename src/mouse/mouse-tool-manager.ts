@@ -264,95 +264,126 @@ export class MouseToolManager {
     const tool = this.currentTool;
 
     if (tool === 'hammer') {
-      // Three sub-segments with random lateral offsets for a jagged strike look.
+      // Three sub-segments with large lateral offsets for a bold jagged strike.
+      // Shadow stroke drawn first (darker, wider) then bright stroke on top.
       const dx = x1 - x0;
       const dy = y1 - y0;
       // Perpendicular unit vector.
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / len;
       const ny =  dx / len;
-      const jitter = () => (Math.random() - 0.5) * 10;
+      const jitter = () => (Math.random() - 0.5) * 30; // ±15 range
       const mx1 = x0 + dx * 0.33 + nx * jitter();
       const my1 = y0 + dy * 0.33 + ny * jitter();
       const mx2 = x0 + dx * 0.66 + nx * jitter();
       const my2 = y0 + dy * 0.66 + ny * jitter();
+      // Dark shadow stroke behind for depth.
       this._trail
         .moveTo(x0, y0)
         .lineTo(mx1, my1)
         .lineTo(mx2, my2)
         .lineTo(x1, y1)
-        .stroke({ color: 0xff6644, width: 6, alpha: 0.55 });
+        .stroke({ color: 0x882200, width: 16, alpha: 0.45 });
+      // Bright primary stroke on top.
+      this._trail
+        .moveTo(x0, y0)
+        .lineTo(mx1, my1)
+        .lineTo(mx2, my2)
+        .lineTo(x1, y1)
+        .stroke({ color: 0xff6644, width: 10, alpha: 0.75 });
 
     } else if (tool === 'laser') {
-      // Glow doublet: wide dim green halo, then thin bright green core.
+      // Glow triplet: wide dim halo → medium mid-layer → thin bright core.
       this._trail
         .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0x44ff44, width: 8, alpha: 0.2 });
+        .stroke({ color: 0x44ff44, width: 16, alpha: 0.35 });
       this._trail
         .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0xaaffaa, width: 1.5, alpha: 0.9 });
+        .stroke({ color: 0x88ff88, width: 7, alpha: 0.5 });
+      this._trail
+        .moveTo(x0, y0).lineTo(x1, y1)
+        .stroke({ color: 0xeeffee, width: 4, alpha: 0.95 });
 
     } else if (tool === 'bomb') {
-      // Dotted pattern: circles spaced every 8px along the path.
+      // Dotted pattern: circles every 5px, each with an orange glow behind.
       const dx = x1 - x0;
       const dy = y1 - y0;
       const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
-      const step = 8;
+      const step = 5;
       const count = Math.max(1, Math.floor(segLen / step));
       for (let i = 0; i <= count; i++) {
         const t = i / count;
         const cx = x0 + dx * t;
         const cy = y0 + dy * t;
-        this._trail.circle(cx, cy, 3).fill({ color: 0xff8800, alpha: 0.5 });
+        // Orange glow halo behind each dot.
+        this._trail.circle(cx, cy, 10).fill({ color: 0xff6600, alpha: 0.2 });
+        // Solid bright dot on top.
+        this._trail.circle(cx, cy, 6).fill({ color: 0xff8800, alpha: 0.75 });
       }
 
     } else if (tool === 'freeze') {
-      // Wide frosted band (semi-transparent), then white speckles.
+      // Wide frosted band (semi-transparent), inner bright band, then white speckles.
       this._trail
         .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0x88ccff, width: 12, alpha: 0.25 });
+        .stroke({ color: 0x88ccff, width: 20, alpha: 0.3 });
       this._trail
         .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0xddeeff, width: 3, alpha: 0.45 });
-      // Scatter a few white speckle dots along the segment.
+        .stroke({ color: 0xddeeff, width: 6, alpha: 0.55 });
+      // Scatter denser, larger white speckle dots along the segment.
       const dx = x1 - x0;
       const dy = y1 - y0;
       const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / segLen;
       const ny =  dx / segLen;
-      const speckleCount = Math.max(2, Math.floor(segLen / 14));
+      const speckleCount = Math.max(3, Math.floor(segLen / 8));
       for (let i = 0; i < speckleCount; i++) {
         const t = (i + 0.5) / speckleCount;
-        const offset = (Math.random() - 0.5) * 8;
+        const offset = (Math.random() - 0.5) * 14;
         const sx = x0 + dx * t + nx * offset;
         const sy = y0 + dy * t + ny * offset;
-        this._trail.circle(sx, sy, 1.5).fill({ color: 0xffffff, alpha: 0.7 });
+        this._trail.circle(sx, sy, 3).fill({ color: 0xffffff, alpha: 0.85 });
       }
 
     } else {
-      // Magnet — electric wavy arc using sine offsets perpendicular to the path.
+      // Magnet — bold double-helix: two sine waves with offset phase.
       const dx = x1 - x0;
       const dy = y1 - y0;
       const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / segLen;
       const ny =  dx / segLen;
-      const wavePoints: number[] = [x0, y0];
       const steps = Math.max(4, Math.floor(segLen / 6));
+
+      // Build two wave point arrays with opposite phase for a double-helix look.
+      const waveA: number[] = [x0, y0];
+      const waveB: number[] = [x0, y0];
       for (let i = 1; i < steps; i++) {
         const t = i / steps;
-        const wave = Math.sin(t * Math.PI * 4) * 5;
-        wavePoints.push(
-          x0 + dx * t + nx * wave,
-          y0 + dy * t + ny * wave,
+        const waveAmp = Math.sin(t * Math.PI * 4) * 12;
+        waveA.push(
+          x0 + dx * t + nx * waveAmp,
+          y0 + dy * t + ny * waveAmp,
+        );
+        waveB.push(
+          x0 + dx * t + nx * -waveAmp,
+          y0 + dy * t + ny * -waveAmp,
         );
       }
-      wavePoints.push(x1, y1);
-      // Draw as a polyline by chaining moveTo/lineTo pairs.
-      for (let i = 0; i < wavePoints.length - 2; i += 2) {
+      waveA.push(x1, y1);
+      waveB.push(x1, y1);
+
+      // Draw strand A (bright purple).
+      for (let i = 0; i < waveA.length - 2; i += 2) {
         this._trail
-          .moveTo(wavePoints[i], wavePoints[i + 1])
-          .lineTo(wavePoints[i + 2], wavePoints[i + 3])
-          .stroke({ color: 0xdd88ff, width: 2.5, alpha: 0.6 });
+          .moveTo(waveA[i], waveA[i + 1])
+          .lineTo(waveA[i + 2], waveA[i + 3])
+          .stroke({ color: 0xdd88ff, width: 4, alpha: 0.75 });
+      }
+      // Draw strand B (deeper purple), offset phase creates helix illusion.
+      for (let i = 0; i < waveB.length - 2; i += 2) {
+        this._trail
+          .moveTo(waveB[i], waveB[i + 1])
+          .lineTo(waveB[i + 2], waveB[i + 3])
+          .stroke({ color: 0xaa44ee, width: 4, alpha: 0.6 });
       }
     }
   }
