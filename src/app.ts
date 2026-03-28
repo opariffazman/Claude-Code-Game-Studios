@@ -100,20 +100,21 @@ export class DeskSmasherApp {
     // Track Ctrl+Shift+Q combo hold for the second unlock method.
     this.setupComboTracking();
 
-    // 6. Particle Manager (depends on stage + safetyLimiter)
-    this.particles = new ParticleManager(this.app.stage, this.safetyLimiter);
-
-    // 6b. Sprite Particle System — Kenney PNG sprites alongside Graphics particles.
-    //     preload() runs concurrently; emit() silently no-ops until textures are ready.
-    this.spriteParticles = new SpriteParticles(this.app.stage);
-    void this.spriteParticles.preload();
-
-    // 7. Desktop Manager (depends on stage + screen dimensions)
+    // 6. Desktop Manager (depends on stage + screen dimensions)
+    //    Created BEFORE particles so desktop renders underneath.
     this.desktop = new DesktopManager(
       this.app.stage,
       this.app.screen.width,
       this.app.screen.height,
     );
+
+    // 7. Particle Manager — AFTER desktop so particles render ON TOP.
+    this.particles = new ParticleManager(this.app.stage, this.safetyLimiter);
+
+    // 7b. Sprite Particle System — Kenney PNG sprites alongside Graphics particles.
+    //     preload() runs concurrently; emit() silently no-ops until textures are ready.
+    this.spriteParticles = new SpriteParticles(this.app.stage);
+    void this.spriteParticles.preload();
 
     // 8. Effect registries — populated once, reused for every hit
     this.destructionRegistry = new EffectRegistry();

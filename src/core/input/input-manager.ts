@@ -371,6 +371,8 @@ export class InputManager {
 
   private handleMouseDown(e: MouseEvent): void {
     e.preventDefault();
+    // Only track left mouse button (button 0). Right-click is handled by contextmenu.
+    if (e.button !== 0) return;
     this.pointerDown = true;
     this.dragActive = false;
     const pos = this.canvasPos(e.clientX, e.clientY);
@@ -393,6 +395,8 @@ export class InputManager {
   }
 
   private handleMouseUp(e: MouseEvent): void {
+    // Only handle left mouse button release
+    if (e.button !== 0) return;
     if (!this.pointerDown) return;
     this.pointerDown = false;
 
