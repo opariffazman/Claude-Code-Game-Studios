@@ -17,6 +17,12 @@
  *   - Auto-rebuild when all elements are destroyed
  *   - Background colour synced to desktop wallpaper palette
  *   - Debounced resize handling
+ *
+ * Sprint 3 deliverables:
+ *   - MouseTrail (sparkle particles following cursor)
+ *   - ChaosMeter (escalating intensity based on input frequency)
+ *   - ScreenShake (additive camera shake on hits)
+ *   - MouseToolManager (5-tool click/drag destruction system)
  */
 import { Application, Text, TextStyle, Container } from 'pixi.js';
 import { SafetyLimiter } from './core/safety-limiter';
@@ -28,6 +34,10 @@ import { DesktopManager } from './desktop/desktop-manager';
 import { EffectRegistry } from './effects/effect-registry';
 import { registerDestructionEffects } from './effects/destruction-effects';
 import { registerDamageEffects, applyProgressiveDamage } from './effects/damage-effects';
+import { MouseToolManager } from './mouse/mouse-tool-manager';
+import { ChaosMeter } from './systems/chaos-meter';
+import { ScreenShake } from './vfx/screen-shake';
+import { MouseTrail } from './vfx/mouse-trail';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
 const RESIZE_DEBOUNCE_MS = 200;
@@ -42,6 +52,10 @@ export class DeskSmasherApp {
   private desktop!: DesktopManager;
   private destructionRegistry!: EffectRegistry;
   private damageRegistry!: EffectRegistry;
+  private mouseTrail!: MouseTrail;
+  private chaosMeter!: ChaosMeter;
+  private screenShake!: ScreenShake;
+  private mouseTools!: MouseToolManager;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -93,8 +107,28 @@ export class DeskSmasherApp {
     // 9. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
 
-    // 10. Wire input -> audio (Sprint 1: keypress = sound) and
+    // 10. UI layer — created before Sprint 3 systems so mouseTools can attach to it
+    const uiLayer = new Container();
+    uiLayer.label = 'ui';
+    this.app.stage.addChild(uiLayer);
+
+    // 11. Sprint 3 systems (in dependency order)
+
+    // Mouse trail sits between desktop and particles in z-order; attaches to stage
+    this.mouseTrail = new MouseTrail(this.app.stage);
+
+    // Chaos meter — stateless rolling window, no dependencies
+    this.chaosMeter = new ChaosMeter();
+
+    // Screen shake — applies offset to the stage container
+    this.screenShake = new ScreenShake();
+
+    // Mouse tools — lives in uiLayer so the cursor indicator is always on top
+    this.mouseTools = new MouseToolManager(uiLayer, this.particles, this.audioManager);
+
+    // 12. Wire input -> audio (Sprint 1: keypress = sound) and
     //     input -> destruction (Sprint 2: keypress/click = hit)
+    //     + Sprint 3: chaos meter, screen shake, mouse tools
     let audioStarted = false;
     this.inputManager.onInput((event) => {
       if (!audioStarted) {
@@ -104,21 +138,31 @@ export class DeskSmasherApp {
 
       if (event.type === 'key' && event.keyCode) {
         this.audioManager.playForKey(event.keyCode);
+        this.chaosMeter.recordInput();
         this.handleKeyboardHit();
       }
 
       if (event.type === 'click' && event.x !== undefined && event.y !== undefined) {
+        this.chaosMeter.recordInput();
         this.handleMouseHit(event.x, event.y);
       }
     });
 
-    // 11. Debounced resize — rebuild desktop when window dimensions settle
-    window.addEventListener('resize', () => this.onWindowResize());
+    // 13. Wire drag events to mouse tools
+    this.inputManager.onDrag((x, y) => {
+      const hitElements = this.mouseTools.applyDrag(x, y, this.desktop.elements);
+      for (const el of hitElements) {
+        if (!el.destroyed) this.hitElement(el);
+      }
+    });
 
-    // 12. UI layer for debug / sprint info
-    const uiLayer = new Container();
-    uiLayer.label = 'ui';
-    this.app.stage.addChild(uiLayer);
+    this.inputManager.onDragEnd((x, y) => {
+      this.mouseTools.onDragEnd(x, y, this.desktop.elements);
+      this.mouseTools.resetDrag();
+    });
+
+    // 14. Debounced resize — rebuild desktop when window dimensions settle
+    window.addEventListener('resize', () => this.onWindowResize());
 
     const fpsStyle = new TextStyle({ fontSize: 10, fill: 0xffffff, fontFamily: 'monospace' });
     const fpsText = new Text({ text: 'FPS: 0', style: fpsStyle });
@@ -126,7 +170,7 @@ export class DeskSmasherApp {
     fpsText.alpha = 0.4;
     uiLayer.addChild(fpsText);
 
-    // 13. Game loop
+    // 15. Game loop
     this.app.ticker.add((ticker) => {
       if (this.unlocked) return;
       const dt = ticker.deltaMS / 1000;
@@ -134,16 +178,19 @@ export class DeskSmasherApp {
       this.parentLock.update();
       this.desktop.update(dt);
       this.particles.update(dt);
+      this.mouseTrail.update(dt);
+      this.chaosMeter.update();
+      this.screenShake.update(this.app!.stage);
 
       // Auto-rebuild when all desktop elements have been destroyed
       if (this.desktop.allDestroyed) {
         this.rebuildDesktop();
       }
 
-      fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Sprint 2 — Destruction`;
+      fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
 
-    console.log('Desk Smasher production build — Sprint 2');
+    console.log('Desk Smasher production build — Sprint 3');
     console.log('Press any key or click to smash the desktop.');
     console.log('Type "exit" or hold Ctrl+Shift+Q for 3 s to end the session.');
   }
@@ -153,28 +200,58 @@ export class DeskSmasherApp {
   // ---------------------------------------------------------------------------
 
   /**
-   * Handles a keyboard hit: targets a random alive element and applies
-   * either a destruction effect (health reaches 0) or a damage effect.
+   * Handles a keyboard hit: targets a random alive element, records chaos,
+   * applies a destruction or damage effect, and triggers chaos-scaled screen shake.
    */
   private handleKeyboardHit(): void {
     const element = this.desktop.getRandomAlive();
     if (!element) return;
     this.hitElement(element);
+
+    const chaosLevel = this.chaosMeter.level;
+    if (chaosLevel >= 1) {
+      this.screenShake.trigger(2 + chaosLevel * 2);
+    }
+    if (chaosLevel >= 2) {
+      // Extra particles at high chaos
+      this.particles.emit(
+        element.x + element.width / 2,
+        element.y + element.height / 2,
+        chaosLevel * 5,
+        { speed: 200, gravity: 300, life: 0.5, scale: 0.8 },
+      );
+    }
   }
 
   /**
-   * Handles a mouse click: targets the topmost element under the cursor.
-   * If no element occupies that position, cracks the wallpaper instead.
+   * Handles a mouse click: routes through the active tool for AoE/extra-damage
+   * effects, then falls back to wallpaper cracking on empty space.
    *
    * @param x - Canvas-space X coordinate of the click.
    * @param y - Canvas-space Y coordinate of the click.
    */
   private handleMouseHit(x: number, y: number): void {
-    const element = this.desktop.getElementAt(x, y);
-    if (element) {
-      this.hitElement(element);
+    const target = this.desktop.getElementAt(x, y);
+    if (target) {
+      const toolResult = this.mouseTools.applyTool(x, y, target, this.desktop.elements);
+      this.hitElement(target);
+      for (let i = 0; i < toolResult.extraDamage; i++) {
+        if (!target.destroyed) this.hitElement(target);
+      }
+      for (const aoeTarget of toolResult.aoeTargets) {
+        if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
+      }
+      this.mouseTools.cycleTool();
     } else {
+      // Empty space — crack wallpaper + tool AoE
       this.desktop.crackWallpaper(x, y);
+      this.particles.emit(x, y, 12, { speed: 150, gravity: 200, life: 0.5 });
+      this.audioManager.play('crack');
+      const toolResult = this.mouseTools.applyTool(x, y, null, this.desktop.elements);
+      for (const aoeTarget of toolResult.aoeTargets) {
+        if (!aoeTarget.destroyed) this.hitElement(aoeTarget);
+      }
+      this.mouseTools.cycleTool();
     }
   }
 
@@ -211,10 +288,11 @@ export class DeskSmasherApp {
 
   /**
    * Rebuilds the desktop and re-syncs the background colour to the new palette.
-   * Clears any lingering particles from the previous session.
+   * Clears any lingering particles and mouse tool trails from the previous session.
    */
   private rebuildDesktop(): void {
     this.particles.clear();
+    this.mouseTools.clearTrails();
     this.desktop.reset();
     this.syncBackground();
   }
