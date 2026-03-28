@@ -4,6 +4,9 @@
  *
  * Sounds are played as procedural oscillator bursts.
  * Active voice count is tracked for polyphony limiting at MAX_POLYPHONY.
+ *
+ * File-based OGG audio is preloaded on first user input and played via
+ * cached audio buffers for richer destruction effects.
  */
 
 import { AUDIO_CONFIG } from '../config';
@@ -14,6 +17,7 @@ import {
   pitchForKey,
   type SoundGenerator,
 } from './procedural-sounds';
+import { DESTRUCTION_SOUNDS, getAllSoundAssets, pickRandom } from './sound-library';
 
 /**
  * AudioManager — provides high-level sound playback API.
@@ -37,6 +41,8 @@ export class AudioManager {
   private muted = false;
   private activeVoices = 0;
   private readonly safety: SafetyLimiter;
+  private audioBufferCache = new Map<string, AudioBuffer>();
+  private soundsPreloaded = false;
 
   /**
    * @param safetyLimiter - Instance to clamp volume levels
@@ -190,6 +196,87 @@ export class AudioManager {
   }
 
   /**
+   * Preloads all OGG audio files from the sound library into the audio buffer cache.
+   * Called asynchronously on first input, no await needed.
+   * Silently handles load failures — missing assets won't crash playback.
+   */
+  async preloadSounds(): Promise<void> {
+    if (this.soundsPreloaded || !this.context) return;
+    this.soundsPreloaded = true;
+
+    const assets = getAllSoundAssets();
+    const loadPromises = assets.map(async (asset) => {
+      try {
+        const response = await fetch(asset.src);
+        const arrayBuffer = await response.arrayBuffer();
+        if (this.context) {
+          const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+          this.audioBufferCache.set(asset.alias, audioBuffer);
+        }
+      } catch (e) {
+        console.warn(`Failed to load sound: ${asset.src}`);
+      }
+    });
+    await Promise.all(loadPromises);
+  }
+
+  /**
+   * Plays a preloaded OGG file by alias.
+   * Applies ±10% random pitch variation for less repetition.
+   * Silently no-ops if the alias is not found or polyphony limit is reached.
+   *
+   * @param alias - Audio buffer cache key (e.g., 'glass-heavy-0')
+   */
+  private playFile(alias: string): void {
+    if (!this.context || !this.masterGain || this.muted) return;
+    if (this.activeVoices >= AUDIO_CONFIG.MAX_POLYPHONY) return;
+
+    const buffer = this.audioBufferCache.get(alias);
+    if (!buffer) return;
+
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+
+    // Random pitch variation ±10%
+    source.playbackRate.value = 0.9 + Math.random() * 0.2;
+
+    source.connect(this.masterGain);
+    source.start();
+
+    this.activeVoices++;
+    source.onended = () => {
+      this.activeVoices = Math.max(0, this.activeVoices - 1);
+    };
+  }
+
+  /**
+   * Plays a random variant from a destruction sound bank.
+   * Picks uniformly at random to avoid predictable sequences.
+   *
+   * @param effectName - Key in DESTRUCTION_SOUNDS (e.g., 'shatter', 'hammer')
+   */
+  playDestruction(effectName: string): void {
+    const bank = DESTRUCTION_SOUNDS[effectName];
+    if (!bank || bank.length === 0) return;
+    const sound = pickRandom(bank);
+    this.playFile(sound.alias);
+  }
+
+  /**
+   * Plays a random damage sound (scratches, glitches).
+   */
+  playDamage(): void {
+    this.playDestruction('damage');
+  }
+
+  /**
+   * Plays a random tool switch sound (clicks).
+   */
+  playToolSwitch(): void {
+    this.playDestruction('toolSwitch');
+  }
+
+  /**
    * Closes the AudioContext and releases all resources.
    * After calling destroy(), the AudioManager is no longer usable.
    */
@@ -199,5 +286,6 @@ export class AudioManager {
       this.context = null;
       this.masterGain = null;
     }
+    this.audioBufferCache.clear();
   }
 }

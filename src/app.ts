@@ -35,6 +35,7 @@ import { InputManager } from './core/input/input-manager';
 import { ParentLock } from './core/input/parent-lock';
 import { AudioManager } from './audio/audio-manager';
 import { ParticleManager } from './vfx/particle-manager';
+import { SpriteParticles } from './vfx/sprite-particles';
 import { DesktopManager } from './desktop/desktop-manager';
 import { EffectRegistry } from './effects/effect-registry';
 import { registerDestructionEffects } from './effects/destruction-effects';
@@ -57,6 +58,7 @@ export class DeskSmasherApp {
   private audioManager!: AudioManager;
   private parentLock!: ParentLock;
   private particles!: ParticleManager;
+  private spriteParticles!: SpriteParticles;
   private desktop!: DesktopManager;
   private destructionRegistry!: EffectRegistry;
   private damageRegistry!: EffectRegistry;
@@ -100,6 +102,11 @@ export class DeskSmasherApp {
 
     // 6. Particle Manager (depends on stage + safetyLimiter)
     this.particles = new ParticleManager(this.app.stage, this.safetyLimiter);
+
+    // 6b. Sprite Particle System — Kenney PNG sprites alongside Graphics particles.
+    //     preload() runs concurrently; emit() silently no-ops until textures are ready.
+    this.spriteParticles = new SpriteParticles(this.app.stage);
+    void this.spriteParticles.preload();
 
     // 7. Desktop Manager (depends on stage + screen dimensions)
     this.desktop = new DesktopManager(
@@ -157,6 +164,7 @@ export class DeskSmasherApp {
         // Called after the new desktop is built: re-sync background and clear ephemeral state.
         this.syncBackground();
         this.particles.clear();
+        this.spriteParticles.clear();
         this.mouseTools.clearTrails();
       },
     );
@@ -171,6 +179,7 @@ export class DeskSmasherApp {
 
       if (!audioStarted) {
         this.audioManager.ensureContext();
+        void this.audioManager.preloadSounds(); // Background preload, no await needed
         audioStarted = true;
       }
 
@@ -206,7 +215,7 @@ export class DeskSmasherApp {
       if (this.rebuildCycle.isTransitioning) return;
       this.mouseTools.cycleTool();
       this.toolIndicator.setTool(this.mouseTools.currentTool);
-      this.audioManager.play('tinkle');
+      this.audioManager.playToolSwitch();
     });
 
     // 18. Debounced resize — rebuild desktop when window dimensions settle
@@ -226,13 +235,14 @@ export class DeskSmasherApp {
       this.parentLock.update();
       this.desktop.update(dt);
       this.particles.update(dt);
+      this.spriteParticles.update(dt);
       this.mouseTrail.update(dt);
       this.chaosMeter.update();
       this.screenShake.update(this.app!.stage);
       this.rebuildCycle.update(dt);
       this.toolIndicator.update(dt);
 
-      fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
+      fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount + this.spriteParticles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
 
     console.log('Desk Smasher production build — Sprint 4');
@@ -313,15 +323,22 @@ export class DeskSmasherApp {
 
     element.health--;
 
+    const cx = element.x + element.width / 2;
+    const cy = element.y + element.height / 2;
+
     if (element.health <= 0) {
       element.health = 0;
       element.destroyed = true;
       const effect = this.destructionRegistry.getRandom();
       effect(element, container, this.particles, this.audioManager);
+      // Sprite-based destruction burst: sparks for satisfying visual pop
+      this.spriteParticles.emit(cx, cy, 8, 'spark');
     } else {
       const dmgEffect = this.damageRegistry.getRandom();
       dmgEffect(element, container, this.particles, this.audioManager);
       applyProgressiveDamage(element, container);
+      // Sprite-based damage hit: dirt chunks for tactile impact feel
+      this.spriteParticles.emit(cx, cy, 3, 'dirt');
     }
 
     this.desktop.applyImpulse(element);
