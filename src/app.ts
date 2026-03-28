@@ -202,7 +202,7 @@ export class DeskSmasherApp {
       if (this.rebuildCycle.isTransitioning) return;
       const hitElements = this.mouseTools.applyDrag(x, y, this.desktop.elements);
       for (const el of hitElements) {
-        if (!el.destroyed) this.hitElement(el);
+        if (!el.destroyed) this.hitElementToolAware(el);
       }
     });
 

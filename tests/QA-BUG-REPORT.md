@@ -12,10 +12,10 @@
 | Severity | Count |
 |----------|-------|
 | S1 Critical | 2 |
-| S2 Major | 7 |
+| S2 Major | 8 |
 | S3 Minor | 8 |
 | Code Quality | 6 |
-| **Total** | **23** |
+| **Total** | **24** |
 
 ---
 
@@ -54,6 +54,7 @@
 | BUG-015 | S3 | `src/systems/rebuild-cycle.ts:25–29` | **`CELEBRATE_DURATION`, `FADE_OUT_DURATION`, and `FADE_IN_DURATION` are file-local constants not in `config.ts`.** Same config standard violation as BUG-014. | Add a `REBUILD_CONFIG` block to `src/config.ts`. |
 | BUG-016 | S3 | `src/desktop/desktop-manager.ts:339–343` | **Physics edge-bounce uses `this.screenH - taskbarH` as the floor, but after an impulse `el.y + el.height` can momentarily exceed the floor before the next `update()` tick corrects it.** Specifically `el.y` is set to `this.screenH - taskbarH - el.height` but the container `c.y` is then set to `el.y`. Since `el.x` and `el.y` represent the top-left corner and `el.width`/`el.height` represent the bounding box dimensions, this is correct only if the container's anchor is at (0,0). PixiJS containers default to (0,0) anchor so this is fine — but the same pattern for the right-edge bounce `el.x = this.screenW - el.width` can produce negative x if `el.width > this.screenW`. | Add a guard: `if (el.width > this.screenW) skip bounce correction`. |
 | BUG-017 | S3 | `src/app.ts:222` | **`window.addEventListener('resize', ...)` is never removed.** The resize listener is added in `start()` but there is no `destroy()` method on `DeskSmasherApp` and the listener is never cleaned up. For a long-lived single-page app this is harmless, but it leaks if `start()` is ever called more than once (e.g. in tests). | Add a `destroy()` method to `DeskSmasherApp` that removes the resize listener and calls `destroy()` on `inputManager`, `mouseTools`, `mouseTrail`, `audioManager`, and `particles`. |
+| BUG-018 | S2 | `src/app.ts:205` | **Drag handler calls `hitElement()` (random effect) instead of `hitElementToolAware()`, so any click with micro-mouse-movement produces random visual effects regardless of the selected tool.** The `onDrag` callback at line 201–207 feeds drag-hit elements into `this.hitElement(el)` — the keyboard-path function that picks a random effect from `destructionRegistry.getRandom()` or `damageRegistry.getRandom()`. The drag path activates as soon as cursor movement exceeds `INPUT_CONFIG.DRAG_THRESHOLD_PX`; natural hand tremor during a normal click routinely crosses this threshold, so `dragActive` becomes true and `emitInput({type:'click'})` is never emitted. The element is then hit via the drag handler using `hitElement` (random effects) rather than the click handler using `hitElementToolAware` (tool effects). The click path (`handleMouseHit` → `hitElementToolAware`) is only reached for perfectly stationary clicks. | Change line 205 from `this.hitElement(el)` to `this.hitElementToolAware(el)`. The drag handler already has access to `hitElementToolAware` — the fix is a one-word substitution. |
 
 ---
 
