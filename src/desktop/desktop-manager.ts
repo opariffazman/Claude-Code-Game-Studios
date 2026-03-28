@@ -26,6 +26,7 @@ import {
 } from './element-types';
 import { ElementFactory } from './element-factory';
 import type { DesktopElement, ElementType, WallpaperPalette } from '../types';
+import type { Theme } from '../systems/theme-system';
 
 let nextId = 0;
 
@@ -45,6 +46,25 @@ export class DesktopManager {
   private screenW: number;
   private screenH: number;
   private _wallpaperColor: number = WALLPAPER_PALETTES[0].bg;
+
+  /**
+   * Optional theme overrides injected by rebuildWithTheme().
+   * When non-null, buildDesktop() uses these instead of the global data pools.
+   * Cleared to null after each use so reset() retains random-palette behavior.
+   */
+  private _themeWallpaper: WallpaperPalette | null = null;
+  private _themeIconColors: readonly number[] | null = null;
+  private _themeTitlebarColors: readonly number[] | null = null;
+  private _themeStickyColors: readonly number[] | null = null;
+
+  /**
+   * Active color arrays for the current build pass.
+   * Set at the start of buildDesktop() from either theme overrides or global pools.
+   * Element builder methods read these instead of importing global arrays directly.
+   */
+  private _activeIconColors: readonly number[] = ICON_COLORS;
+  private _activeTitlebarColors: readonly number[] = TITLEBAR_COLORS;
+  private _activeStickyColors: readonly number[] = STICKY_COLORS;
 
   /**
    * Constructs the manager and immediately builds the first desktop.
@@ -347,12 +367,40 @@ export class DesktopManager {
     this.reset();
   }
 
+  /**
+   * Destroys all existing display objects and rebuilds a fresh desktop using
+   * the visual identity defined by the given Theme: its wallpaper palette,
+   * icon colors, titlebar colors, and sticky colors override the global pools
+   * for this single build, then clear so subsequent reset() calls are random.
+   *
+   * @param theme - The Theme to apply to the rebuilt desktop.
+   */
+  rebuildWithTheme(theme: Theme): void {
+    this._themeWallpaper = theme.wallpaper;
+    this._themeIconColors = theme.iconColors;
+    this._themeTitlebarColors = theme.titlebarColors;
+    this._themeStickyColors = theme.stickyColors;
+    this.reset();
+    // reset() calls buildDesktop() which reads and then clears the overrides.
+  }
+
   // ---------------------------------------------------------------------------
   // Private: desktop construction
   // ---------------------------------------------------------------------------
 
   private buildDesktop(): void {
-    const palette = pick(WALLPAPER_PALETTES);
+    // Use theme overrides when set by rebuildWithTheme(), else pick randomly.
+    const palette = this._themeWallpaper ?? pick(WALLPAPER_PALETTES);
+    this._activeIconColors = this._themeIconColors ?? ICON_COLORS;
+    this._activeTitlebarColors = this._themeTitlebarColors ?? TITLEBAR_COLORS;
+    this._activeStickyColors = this._themeStickyColors ?? STICKY_COLORS;
+
+    // Clear overrides so the next reset() call uses random palettes.
+    this._themeWallpaper = null;
+    this._themeIconColors = null;
+    this._themeTitlebarColors = null;
+    this._themeStickyColors = null;
+
     this._wallpaperColor = palette.bg;
     this.buildWallpaper(palette);
     this.buildTaskbar();
@@ -412,7 +460,7 @@ export class DesktopManager {
       const row = Math.floor(i / cols);
       const x = Math.round(startX + col * spacingX + rand(-15, 15));
       const y = Math.round(startY + row * spacingY + rand(-15, 15));
-      const color = pick(ICON_COLORS);
+      const color = pick(this._activeIconColors);
       const iconSize = 64;
 
       const { container: c } = this.factory.createIcon(label, color, iconSize);
@@ -444,7 +492,7 @@ export class DesktopManager {
       const h = Math.round(rand(0.20, 0.40) * this.screenH);
       const x = Math.round(rand(0.18, 0.65) * this.screenW);
       const y = Math.round(rand(0.05, 0.55) * this.screenH);
-      const titleColor = TITLEBAR_COLORS[i % TITLEBAR_COLORS.length];
+      const titleColor = this._activeTitlebarColors[i % this._activeTitlebarColors.length];
 
       const { container: c } = this.factory.createWindow(title, w, h, titleColor);
       c.position.set(x, y);
@@ -473,7 +521,7 @@ export class DesktopManager {
       const h = 80;
       const x = Math.round(rand(0.65, 0.88) * this.screenW);
       const y = Math.round(rand(0.05, 0.55) * this.screenH);
-      const color = STICKY_COLORS[i % STICKY_COLORS.length];
+      const color = this._activeStickyColors[i % this._activeStickyColors.length];
 
       const { container: c } = this.factory.createSticky(text, w, h, color);
       c.position.set(x, y);

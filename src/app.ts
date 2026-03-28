@@ -23,6 +23,11 @@
  *   - ChaosMeter (escalating intensity based on input frequency)
  *   - ScreenShake (additive camera shake on hits)
  *   - MouseToolManager (5-tool click/drag destruction system)
+ *
+ * Sprint 4 deliverables:
+ *   - ThemeSystem (5 desktop visual themes with weighted selection)
+ *   - RebuildCycle (animated fade-to-white transition between rebuilds)
+ *   - Input blocked during transitions (no hits against half-built desktop)
  */
 import { Application, Text, TextStyle, Container } from 'pixi.js';
 import { SafetyLimiter } from './core/safety-limiter';
@@ -38,6 +43,8 @@ import { MouseToolManager } from './mouse/mouse-tool-manager';
 import { ChaosMeter } from './systems/chaos-meter';
 import { ScreenShake } from './vfx/screen-shake';
 import { MouseTrail } from './vfx/mouse-trail';
+import { ThemeSystem } from './systems/theme-system';
+import { RebuildCycle } from './systems/rebuild-cycle';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
 const RESIZE_DEBOUNCE_MS = 200;
@@ -56,6 +63,8 @@ export class DeskSmasherApp {
   private chaosMeter!: ChaosMeter;
   private screenShake!: ScreenShake;
   private mouseTools!: MouseToolManager;
+  private themeSystem!: ThemeSystem;
+  private rebuildCycle!: RebuildCycle;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -104,15 +113,22 @@ export class DeskSmasherApp {
     this.damageRegistry = new EffectRegistry();
     registerDamageEffects(this.damageRegistry);
 
-    // 9. Sync background colour to the desktop wallpaper palette
+    // 9. Theme System — manages desktop visual themes across rebuilds
+    this.themeSystem = new ThemeSystem();
+
+    // Apply initial theme to the already-built desktop
+    const initialTheme = this.themeSystem.getNextTheme();
+    this.desktop.rebuildWithTheme(initialTheme);
+
+    // 10. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
 
-    // 10. UI layer — created before Sprint 3 systems so mouseTools can attach to it
+    // 11. UI layer — created before Sprint 3 systems so mouseTools can attach to it
     const uiLayer = new Container();
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
 
-    // 11. Sprint 3 systems (in dependency order)
+    // 12. Sprint 3 systems (in dependency order)
 
     // Mouse trail sits between desktop and particles in z-order; attaches to stage
     this.mouseTrail = new MouseTrail(this.app.stage);
@@ -126,11 +142,28 @@ export class DeskSmasherApp {
     // Mouse tools — lives in uiLayer so the cursor indicator is always on top
     this.mouseTools = new MouseToolManager(uiLayer, this.particles, this.audioManager);
 
-    // 12. Wire input -> audio (Sprint 1: keypress = sound) and
+    // 13. Rebuild cycle — monitors destruction and drives animated theme transitions.
+    //     Overlay is added to the stage so it renders above all desktop content.
+    this.rebuildCycle = new RebuildCycle(
+      this.desktop,
+      this.themeSystem,
+      this.app.stage,
+      () => {
+        // Called after the new desktop is built: re-sync background and clear ephemeral state.
+        this.syncBackground();
+        this.particles.clear();
+        this.mouseTools.clearTrails();
+      },
+    );
+
+    // 14. Wire input -> audio (Sprint 1: keypress = sound) and
     //     input -> destruction (Sprint 2: keypress/click = hit)
     //     + Sprint 3: chaos meter, screen shake, mouse tools
     let audioStarted = false;
     this.inputManager.onInput((event) => {
+      // Skip input during animated rebuild transitions to avoid hitting a half-built desktop.
+      if (this.rebuildCycle.isTransitioning) return;
+
       if (!audioStarted) {
         this.audioManager.ensureContext();
         audioStarted = true;
@@ -148,8 +181,9 @@ export class DeskSmasherApp {
       }
     });
 
-    // 13. Wire drag events to mouse tools
+    // 15. Wire drag events to mouse tools
     this.inputManager.onDrag((x, y) => {
+      if (this.rebuildCycle.isTransitioning) return;
       const hitElements = this.mouseTools.applyDrag(x, y, this.desktop.elements);
       for (const el of hitElements) {
         if (!el.destroyed) this.hitElement(el);
@@ -161,7 +195,7 @@ export class DeskSmasherApp {
       this.mouseTools.resetDrag();
     });
 
-    // 14. Debounced resize — rebuild desktop when window dimensions settle
+    // 16. Debounced resize — rebuild desktop when window dimensions settle
     window.addEventListener('resize', () => this.onWindowResize());
 
     const fpsStyle = new TextStyle({ fontSize: 10, fill: 0xffffff, fontFamily: 'monospace' });
@@ -170,7 +204,7 @@ export class DeskSmasherApp {
     fpsText.alpha = 0.4;
     uiLayer.addChild(fpsText);
 
-    // 15. Game loop
+    // 17. Game loop
     this.app.ticker.add((ticker) => {
       if (this.unlocked) return;
       const dt = ticker.deltaMS / 1000;
@@ -181,16 +215,12 @@ export class DeskSmasherApp {
       this.mouseTrail.update(dt);
       this.chaosMeter.update();
       this.screenShake.update(this.app!.stage);
-
-      // Auto-rebuild when all desktop elements have been destroyed
-      if (this.desktop.allDestroyed) {
-        this.rebuildDesktop();
-      }
+      this.rebuildCycle.update(dt);
 
       fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
 
-    console.log('Desk Smasher production build — Sprint 3');
+    console.log('Desk Smasher production build — Sprint 4');
     console.log('Press any key or click to smash the desktop.');
     console.log('Type "exit" or hold Ctrl+Shift+Q for 3 s to end the session.');
   }
@@ -285,17 +315,6 @@ export class DeskSmasherApp {
   // ---------------------------------------------------------------------------
   // Desktop lifecycle helpers
   // ---------------------------------------------------------------------------
-
-  /**
-   * Rebuilds the desktop and re-syncs the background colour to the new palette.
-   * Clears any lingering particles and mouse tool trails from the previous session.
-   */
-  private rebuildDesktop(): void {
-    this.particles.clear();
-    this.mouseTools.clearTrails();
-    this.desktop.reset();
-    this.syncBackground();
-  }
 
   /**
    * Syncs the PixiJS renderer background colour to the current desktop
