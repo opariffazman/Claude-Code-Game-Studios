@@ -482,10 +482,6 @@ export class DesktopManager {
     this.buildWallpaper(palette);
     this.buildTaskbar();
     this.buildIcons(randInt(DESKTOP_CONFIG.ICONS.min, DESKTOP_CONFIG.ICONS.max));
-    this.buildWindows(randInt(DESKTOP_CONFIG.WINDOWS.min, DESKTOP_CONFIG.WINDOWS.max));
-    this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
-    this.buildNotifications(randInt(DESKTOP_CONFIG.NOTIFICATIONS.min, DESKTOP_CONFIG.NOTIFICATIONS.max));
-    this.buildWidgets(randInt(DESKTOP_CONFIG.WIDGETS.min, DESKTOP_CONFIG.WIDGETS.max));
 
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
@@ -535,25 +531,18 @@ export class DesktopManager {
       ? this._themeLoader!.currentTheme.iconFrames.length
       : count;
 
-    // Grid layout: 5 columns to comfortably fit up to 30 sprites across the left band.
-    // Implements: desk-smasher-1zl — wider grid to accommodate full animal set.
-    const cols = 5;
-    const spacingX = Math.round(this.screenW * 0.08);
-    const spacingY = Math.round(this.screenH * 0.10);
-    const startX = Math.round(this.screenW * 0.02);
-    const startY = Math.round(this.screenH * 0.04);
-
+    // Implements: desk-smasher-qnn — scatter icons randomly across the full desktop.
     const labels = shuffle(ICON_LABELS).slice(0, iconCount);
 
     // Sprite natural size: 154x132 px (animal sheet). Scale to 60% for desktop comfort.
     // Implements: desk-smasher-8lo — use actual sprite dimensions, not a 64px square.
     const SPRITE_SCALE = 0.6;
 
+    const margin = 80;
+    const taskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT;
+    const MIN_SPACING = 60;
+
     for (let i = 0; i < iconCount; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = Math.round(startX + col * spacingX + rand(-8, 8));
-      const y = Math.round(startY + row * spacingY + rand(-8, 8));
       const color = pick(this._activeIconColors);
 
       let displayLabel: string;
@@ -588,7 +577,27 @@ export class DesktopManager {
         ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
       }
 
+      // Scatter randomly across the full desktop with overlap retry.
+      // Implements: desk-smasher-qnn — full-desktop icon scatter.
+      let posX = 0;
+      let posY = 0;
+      let attempts = 0;
+      do {
+        posX = margin + Math.random() * (this.screenW - margin * 2 - width);
+        posY = margin + Math.random() * (this.screenH - taskbarH - margin * 2 - height);
+        attempts++;
+      } while (attempts < 10 && this._elements.some(e => {
+        const dx = e.x - posX;
+        const dy = e.y - posY;
+        return Math.sqrt(dx * dx + dy * dy) < MIN_SPACING;
+      }));
+
+      const x = Math.round(posX);
+      const y = Math.round(posY);
+
       c.position.set(x, y);
+      // Slight random rotation for a playful scattered feel.
+      c.rotation = (Math.random() - 0.5) * 0.3;
       this.container.addChild(c);
 
       const el: DesktopElement = {
