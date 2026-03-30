@@ -116,11 +116,11 @@ export class ElementFactory {
     const container = new Container();
     container.label = `icon-${label}`;
 
-    // Sprite icon — scaled to 85% of icon area so the full sprite fits with margin
+    // Sprite icon — scaled to 100% of icon area (animal PNGs have built-in padding)
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
     const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
-    const iconScale = (size * 0.85) / maxDim;
+    const iconScale = size / maxDim;
     sprite.scale.set(iconScale);
     sprite.position.set(size / 2, size / 2);
     container.addChild(sprite);

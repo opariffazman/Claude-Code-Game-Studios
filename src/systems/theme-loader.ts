@@ -32,7 +32,7 @@ const THEMES: ThemeAssets[] = [
   {
     name: 'animal-farm',
     iconAtlas: 'assets/kenney/animals/animals.json',
-    wallpaperColor: 0x88cc44,
+    wallpaperColor: 0x5b8c3e,  // Soft forest green — better contrast with bright animal sprites
     iconFrames: [],
   },
   {
@@ -51,7 +51,7 @@ const THEMES: ThemeAssets[] = [
     name: 'fantasy-kingdom',
     // Reuses animals atlas; Phase 2 will add a unique UI chrome atlas
     iconAtlas: 'assets/kenney/animals/animals.json',
-    wallpaperColor: 0x2d5a1e,
+    wallpaperColor: 0x3d2b56,  // Purple twilight — distinct from animal-farm forest green
     iconFrames: [],
   },
   {
