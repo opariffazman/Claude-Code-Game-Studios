@@ -17,7 +17,7 @@
  * PixiJS v8: uses Graphics method-chain API (.rect().fill()), new Text({text,style}),
  * and container.label for node naming.
  */
-import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, NineSliceSprite, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
 import type { TilePanelBuilder, PanelStyle } from '../ui/tile-panel';
 import { DESKTOP_CONFIG } from '../config';
@@ -72,6 +72,9 @@ export class DesktopManager {
   private _themeIconColors: readonly number[] | null = null;
   private _themeTitlebarColors: readonly number[] | null = null;
   private _themeStickyColors: readonly number[] | null = null;
+
+  /** Active theme name for the current build pass — used to select adventure panel assets. */
+  private _activeThemeName: string | undefined = undefined;
 
   /**
    * Active color arrays for the current build pass.
@@ -483,6 +486,9 @@ export class DesktopManager {
     this._activeTitlebarColors = this._themeTitlebarColors ?? TITLEBAR_COLORS;
     this._activeStickyColors = this._themeStickyColors ?? STICKY_COLORS;
 
+    // Capture the active theme name before clearing overrides.
+    this._activeThemeName = this._themeLoader?.currentTheme.name;
+
     // Clear overrides so the next reset() call uses random palettes.
     this._themeWallpaper = null;
     this._themeIconColors = null;
@@ -497,6 +503,7 @@ export class DesktopManager {
     this.buildTaskbar();
     this.buildIcons(randInt(DESKTOP_CONFIG.ICONS.min, DESKTOP_CONFIG.ICONS.max));
     this.buildWindows(randInt(DESKTOP_CONFIG.WINDOWS.min, DESKTOP_CONFIG.WINDOWS.max));
+    this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
@@ -514,9 +521,56 @@ export class DesktopManager {
   private buildTaskbar(): void {
     const taskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT;
     const y = this.screenH - taskbarH;
-    const { container: c, gfx } = this.factory.createTaskbar(this.screenW, taskbarH);
+
+    let c: Container;
+    let gfx: Graphics | null = null;
+
+    if (this._tilePanelBuilder?.isReady) {
+      // Adventure dark panel for taskbar background.
+      c = new Container();
+      c.label = 'taskbar';
+
+      const barSprite = this._tilePanelBuilder.buildTaskbarBg(this.screenW + 500, taskbarH + 200);
+      if (barSprite) {
+        c.addChild(barSprite);
+      } else {
+        // Fallback to Graphics if texture somehow missing.
+        const bar = new Graphics()
+          .rect(0, 0, this.screenW + 500, taskbarH + 200)
+          .fill({ color: 0x1a1a2e, alpha: 0.9 });
+        c.addChild(bar);
+        gfx = bar;
+      }
+
+      // Round brown start button.
+      const startBtn = this._tilePanelBuilder.buildStartButton();
+      if (startBtn) {
+        startBtn.position.set(4, 4);
+        startBtn.width = 40;
+        startBtn.height = 40;
+        c.addChild(startBtn);
+      } else {
+        const fallbackBtn = new Graphics()
+          .roundRect(4, 4, 40, 40, 6)
+          .fill(0x8b5e3c);
+        c.addChild(fallbackBtn);
+      }
+
+      // Clock text — same as factory version.
+      const clockStyle = new TextStyle({ fontSize: 14, fill: 0xffffff, fontFamily: 'monospace' });
+      const clock = new Text({ text: '12:00', style: clockStyle });
+      clock.position.set(this.screenW - 60, 14);
+      c.addChild(clock);
+    } else {
+      // No tile builder — delegate to element factory.
+      const result = this.factory.createTaskbar(this.screenW, taskbarH);
+      c = result.container;
+      gfx = result.gfx;
+    }
+
     c.position.set(0, y);
     this.container.addChild(c);
+    void gfx; // gfx accessible via container if needed later
 
     const el: DesktopElement = {
       id: `el-${nextId++}`,
