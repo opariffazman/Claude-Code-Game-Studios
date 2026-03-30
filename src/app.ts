@@ -105,6 +105,9 @@ export class DeskSmasherApp {
 
     // 6. Desktop Manager (depends on stage + screen dimensions)
     //    Created BEFORE particles so desktop renders underneath.
+    //    NOTE: constructor no longer calls buildDesktop() — we do the first build
+    //    below after the ThemeLoader is ready, so sprites are available immediately.
+    //    Implements: desk-smasher-8l3 — no flash of un-themed desktop on startup.
     this.desktop = new DesktopManager(
       this.app.stage,
       this.app.screen.width,
@@ -127,7 +130,7 @@ export class DeskSmasherApp {
     registerDamageEffects(this.damageRegistry);
 
     // 9. Theme Loader — manages Kenney atlas loading for all 5 themes.
-    //    Must be ready before ThemeSystem is created and before the first rebuild.
+    //    Must be ready before ThemeSystem is created and before the first build.
     this.themeLoader = new ThemeLoader();
     await this.themeLoader.loadInitialTheme();
     console.log(
@@ -138,11 +141,10 @@ export class DeskSmasherApp {
     // the Theme interface consumed by DesktopManager and RebuildCycle.
     this.themeSystem = new ThemeSystem(this.themeLoader);
 
-    // Wire ThemeLoader into DesktopManager so buildIcons() uses sprite textures.
-    // Must be called BEFORE rebuildWithTheme() so the first sprite rebuild works.
+    // Wire ThemeLoader into DesktopManager so buildIcons() uses sprite textures,
+    // then trigger the first build. This is the only build — no un-themed flash.
+    // Implements: desk-smasher-8l3 — constructor deferred; first build is here.
     this.desktop.setThemeLoader(this.themeLoader);
-
-    // Apply initial theme to the already-built desktop
     const initialTheme = this.themeSystem.currentTheme;
     this.desktop.rebuildWithTheme(initialTheme);
 

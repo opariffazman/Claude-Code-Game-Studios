@@ -95,7 +95,9 @@ export class DesktopManager {
     this.container.label = 'desktop';
     this.parent.addChild(this.container);
 
-    this.buildDesktop();
+    // Do NOT call buildDesktop() here — app.ts calls reset() after wiring the
+    // ThemeLoader so the first build always has sprites ready.
+    // Implements: desk-smasher-8l3 — no flash of un-themed desktop on startup.
   }
 
   // ---------------------------------------------------------------------------
@@ -526,29 +528,38 @@ export class DesktopManager {
   }
 
   private buildIcons(count: number): void {
-    const cols = 2;
-    const spacingX = Math.round(this.screenW * 0.06);
-    const spacingY = Math.round(this.screenH * 0.12);
+    // When sprites are available show ALL frames; otherwise use the configured min/max range.
+    // Implements: desk-smasher-1zl — show all 30 animals when sprite theme is active.
+    const useSprites = this._themeLoader?.isReady ?? false;
+    const iconCount = useSprites
+      ? this._themeLoader!.currentTheme.iconFrames.length
+      : count;
+
+    // Grid layout: 5 columns to comfortably fit up to 30 sprites across the left band.
+    // Implements: desk-smasher-1zl — wider grid to accommodate full animal set.
+    const cols = 5;
+    const spacingX = Math.round(this.screenW * 0.08);
+    const spacingY = Math.round(this.screenH * 0.10);
     const startX = Math.round(this.screenW * 0.02);
     const startY = Math.round(this.screenH * 0.04);
 
-    // Use up to `count` sprites when ThemeLoader is ready, else fall back to ICON_LABELS.
-    const useSprites = this._themeLoader?.isReady ?? false;
-    const iconCount = Math.min(count, useSprites
-      ? (this._themeLoader!.currentTheme.iconFrames.length || count)
-      : ICON_LABELS.length);
-    const labels = shuffle(ICON_LABELS).slice(0, count);
+    const labels = shuffle(ICON_LABELS).slice(0, iconCount);
+
+    // Sprite natural size: 154x132 px (animal sheet). Scale to 60% for desktop comfort.
+    // Implements: desk-smasher-8lo — use actual sprite dimensions, not a 64px square.
+    const SPRITE_SCALE = 0.6;
 
     for (let i = 0; i < iconCount; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const x = Math.round(startX + col * spacingX + rand(-15, 15));
-      const y = Math.round(startY + row * spacingY + rand(-15, 15));
+      const x = Math.round(startX + col * spacingX + rand(-8, 8));
+      const y = Math.round(startY + row * spacingY + rand(-8, 8));
       const color = pick(this._activeIconColors);
-      const iconSize = 64;
 
       let displayLabel: string;
       let c: import('pixi.js').Container;
+      let width: number;
+      let height: number;
 
       if (useSprites) {
         const texture = this._themeLoader!.getNextIconTexture();
@@ -557,15 +568,24 @@ export class DesktopManager {
           const frames = this._themeLoader!.currentTheme.iconFrames;
           const frameName = frames[i % frames.length] ?? labels[i] ?? `Icon ${i}`;
           displayLabel = frameName.charAt(0).toUpperCase() + frameName.slice(1);
-          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, iconSize, color));
+          // Use sprite's natural dimensions scaled for desktop — hitbox matches visual.
+          const spriteW = Math.round(texture.width * SPRITE_SCALE);
+          const spriteH = Math.round(texture.height * SPRITE_SCALE);
+          width = spriteW;
+          height = spriteH;
+          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, spriteW, spriteH));
         } else {
-          // Atlas loaded but getRandomIconTexture returned null — fall back
+          // Atlas loaded but getNextIconTexture returned null — fall back to Graphics icon.
           displayLabel = labels[i] ?? `Icon ${i}`;
-          ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
+          width = 64;
+          height = 64;
+          ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
         }
       } else {
         displayLabel = labels[i] ?? `Icon ${i}`;
-        ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
+        width = 64;
+        height = 64;
+        ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
       }
 
       c.position.set(x, y);
@@ -579,8 +599,8 @@ export class DesktopManager {
         maxHealth: DESKTOP_CONFIG.HEALTH.icon,
         destroyed: false,
         x, y,
-        width: iconSize,
-        height: iconSize,
+        width,
+        height,
         vx: 0, vy: 0, rotSpeed: 0,
       };
       this._elements.push(el);

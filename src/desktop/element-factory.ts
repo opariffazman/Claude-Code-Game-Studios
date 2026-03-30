@@ -99,30 +99,31 @@ export class ElementFactory {
 
   /**
    * Creates a desktop icon using a sprite texture from the active theme.
-   * Falls back to createIcon() if texture is null.
+   * The sprite is displayed at the given width/height (natural size * scale),
+   * so the hitbox and visual match exactly.
+   *
+   * Implements: desk-smasher-8lo — use sprite's actual dimensions, not a 64px square.
    *
    * @param texture  - A Texture from the loaded theme atlas.
    * @param label    - Text shown below the icon.
-   * @param size     - Icon square side length in px. Defaults to 64.
-   * @param bgColor  - Fill colour for the icon background square.
-   * @returns Container and primary background Graphics.
+   * @param width    - Desired display width in px.
+   * @param height   - Desired display height in px.
+   * @returns Container and primary Sprite (cast to Graphics for registry compat).
    */
   createSpriteIcon(
     texture: Texture,
     label: string,
-    size: number = 64,
-    _bgColor: number = 0x4466aa, // unused — background removed, kept for API compat
+    width: number,
+    height: number,
   ): ElementVisual {
     const container = new Container();
     container.label = `icon-${label}`;
 
-    // Sprite icon — scaled to 100% of icon area (animal PNGs have built-in padding)
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
-    const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
-    const iconScale = size / maxDim;
-    sprite.scale.set(iconScale);
-    sprite.position.set(size / 2, size / 2);
+    sprite.width = width;
+    sprite.height = height;
+    sprite.position.set(width / 2, height / 2);
     container.addChild(sprite);
 
     // Return sprite as gfx so damage tinting works on the sprite itself
