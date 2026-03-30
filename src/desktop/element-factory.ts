@@ -111,23 +111,16 @@ export class ElementFactory {
     texture: Texture,
     label: string,
     size: number = 64,
-    bgColor: number = 0x4466aa,
+    _bgColor: number = 0x4466aa, // unused — background removed, kept for API compat
   ): ElementVisual {
     const container = new Container();
     container.label = `icon-${label}`;
 
-    // Background rounded rect (keep for visual consistency)
-    const bg = new Graphics()
-      .roundRect(0, 0, size, size, 10)
-      .fill(bgColor)
-      .roundRect(0, 0, size, size, 10)
-      .stroke({ color: 0xffffff, width: 2, alpha: 0.3 });
-    container.addChild(bg);
-
-    // Sprite icon (centered, scaled to fit within the background)
+    // Sprite icon — scaled to fill the icon area, no background rect
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
-    const iconScale = (size * 0.7) / Math.max(sprite.width, sprite.height);
+    const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
+    const iconScale = size / maxDim;
     sprite.scale.set(iconScale);
     sprite.position.set(size / 2, size / 2);
     container.addChild(sprite);
@@ -144,7 +137,8 @@ export class ElementFactory {
     labelText.position.set(size / 2, size + 4);
     container.addChild(labelText);
 
-    return { container, gfx: bg };
+    // Return sprite as gfx so damage tinting works on the sprite itself
+    return { container, gfx: sprite as unknown as Graphics };
   }
 
   /**
