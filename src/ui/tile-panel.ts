@@ -30,8 +30,9 @@ const ADV_GRID_PAPER = 'assets/kenney/ui/adventure/panel_grid_paper.png';
 const ADV_TASKBAR    = 'assets/kenney/ui/adventure/panel_brown_dark.png';
 const ADV_ROUND_BTN  = 'assets/kenney/ui/adventure/round_brown.png';
 
-/** Border inset for NineSliceSprite — pixels from each edge kept unscaled. */
-const BORDER_INSET = 8;
+/** Border inset for NineSliceSprite — pixels from each edge kept unscaled.
+ *  Using Double (2x/128px) adventure PNGs, so inset is 16px (was 8 for 64px). */
+const BORDER_INSET = 16;
 
 /** Adventure pack close button — standalone sprite, render at native size. */
 const CLOSE_BTN = 'assets/kenney/ui/adventure/close_red.png';
