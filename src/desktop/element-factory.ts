@@ -11,7 +11,7 @@
  * Icons are drawn via DESKTOP_ICONS / NOTIFICATION_ICONS definitions from
  * src/assets/svg-icons.ts — no emojis or external assets.
  */
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { ICON_COLORS, STICKY_COLORS, TITLEBAR_COLORS, NOTIF_TEXTS, rand, pick } from './element-types';
 import { DESKTOP_ICONS, NOTIFICATION_ICONS } from '../assets/svg-icons';
 
@@ -95,6 +95,56 @@ export class ElementFactory {
     container.addChild(labelTxt);
 
     return { container, gfx };
+  }
+
+  /**
+   * Creates a desktop icon using a sprite texture from the active theme.
+   * Falls back to createIcon() if texture is null.
+   *
+   * @param texture  - A Texture from the loaded theme atlas.
+   * @param label    - Text shown below the icon.
+   * @param size     - Icon square side length in px. Defaults to 64.
+   * @param bgColor  - Fill colour for the icon background square.
+   * @returns Container and primary background Graphics.
+   */
+  createSpriteIcon(
+    texture: Texture,
+    label: string,
+    size: number = 64,
+    bgColor: number = 0x4466aa,
+  ): ElementVisual {
+    const container = new Container();
+    container.label = `icon-${label}`;
+
+    // Background rounded rect (keep for visual consistency)
+    const bg = new Graphics()
+      .roundRect(0, 0, size, size, 10)
+      .fill(bgColor)
+      .roundRect(0, 0, size, size, 10)
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.3 });
+    container.addChild(bg);
+
+    // Sprite icon (centered, scaled to fit within the background)
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(0.5);
+    const iconScale = (size * 0.7) / Math.max(sprite.width, sprite.height);
+    sprite.scale.set(iconScale);
+    sprite.position.set(size / 2, size / 2);
+    container.addChild(sprite);
+
+    // Label below
+    const labelStyle = new TextStyle({
+      fontSize: 11,
+      fill: 0xffffff,
+      fontFamily: 'sans-serif',
+      align: 'center',
+    });
+    const labelText = new Text({ text: label, style: labelStyle });
+    labelText.anchor.set(0.5, 0);
+    labelText.position.set(size / 2, size + 4);
+    container.addChild(labelText);
+
+    return { container, gfx: bg };
   }
 
   /**

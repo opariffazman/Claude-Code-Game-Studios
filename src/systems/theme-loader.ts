@@ -6,7 +6,11 @@
  *
  * No Graphics fallback — sprites only (web = demo, Tauri = product).
  *
- * Implements: design/gdd/theme-system.md — Phase 1 atlas loading
+ * Implements: design/gdd/theme-system.md — Phase 1 atlas loading (all 5 themes)
+ *
+ * Note: fantasy-kingdom and rpg-quest share atlases with animal-farm and
+ * pixel-adventure. In Phase 2 (UI packs) they will receive unique window chrome
+ * via the optional uiAtlas field.
  */
 import { Assets, Texture } from 'pixi.js';
 
@@ -23,15 +27,40 @@ export interface ThemeAssets {
   iconFrames: string[];
 }
 
-/** All 5 theme definitions (Phase 1: only animal-farm has real atlas) */
+/** All 5 theme definitions */
 const THEMES: ThemeAssets[] = [
   {
     name: 'animal-farm',
     iconAtlas: 'assets/kenney/animals/animals.json',
     wallpaperColor: 0x88cc44,
-    iconFrames: [], // Populated after atlas loads
+    iconFrames: [],
   },
-  // Phase 2: remaining themes will be added here
+  {
+    name: 'pixel-adventure',
+    iconAtlas: 'assets/kenney/generic-items/generic-items.json',
+    wallpaperColor: 0x6b4226,
+    iconFrames: [],
+  },
+  {
+    name: 'space-station',
+    iconAtlas: 'assets/kenney/vehicles/vehicles.json',
+    wallpaperColor: 0x1a1a3e,
+    iconFrames: [],
+  },
+  {
+    name: 'fantasy-kingdom',
+    // Reuses animals atlas; Phase 2 will add a unique UI chrome atlas
+    iconAtlas: 'assets/kenney/animals/animals.json',
+    wallpaperColor: 0x2d5a1e,
+    iconFrames: [],
+  },
+  {
+    name: 'rpg-quest',
+    // Reuses generic-items atlas; Phase 2 will add a unique UI chrome atlas
+    iconAtlas: 'assets/kenney/generic-items/generic-items.json',
+    wallpaperColor: 0x8b4513,
+    iconFrames: [],
+  },
 ];
 
 export class ThemeLoader {
@@ -62,6 +91,18 @@ export class ThemeLoader {
   /** Advance to the next theme (call on desktop rebuild). */
   advanceTheme(): void {
     this._currentThemeIndex = (this._currentThemeIndex + 1) % THEMES.length;
+  }
+
+  /**
+   * Advance to the next theme, load its atlas if not already loaded, and
+   * return it. Awaiting this guarantees the incoming theme's textures are
+   * available before the desktop rebuilds.
+   */
+  async advanceAndLoad(): Promise<ThemeAssets> {
+    this.advanceTheme();
+    const theme = this.currentTheme;
+    await this._loadAtlas(theme.iconAtlas);
+    return theme;
   }
 
   /** Get the current theme config. */
@@ -100,9 +141,15 @@ export class ThemeLoader {
       // PixiJS v8: Assets.load() on a .json spritesheet parses the atlas and
       // registers all frame textures so Assets.get('frameName') works after this.
       const sheet = await Assets.load<{ textures?: Record<string, Texture> }>(path);
-      const theme = THEMES.find(t => t.iconAtlas === path);
-      if (theme && sheet?.textures) {
-        theme.iconFrames = Object.keys(sheet.textures);
+      // Update iconFrames for ALL themes sharing this atlas path so that
+      // fantasy-kingdom / rpg-quest (which reuse animals / generic-items) also
+      // get their frame list populated without a second network request.
+      const sharingThemes = THEMES.filter(t => t.iconAtlas === path);
+      if (sheet?.textures) {
+        const frames = Object.keys(sheet.textures);
+        for (const t of sharingThemes) {
+          t.iconFrames = frames;
+        }
       }
       this._loadedAtlases.add(path);
     } catch (e) {

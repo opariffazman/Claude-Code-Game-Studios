@@ -18,6 +18,7 @@
  * and container.label for node naming.
  */
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import type { ThemeLoader } from '../systems/theme-loader';
 import { DESKTOP_CONFIG } from '../config';
 import {
   WALLPAPER_PALETTES, ICON_LABELS, WINDOW_TITLES, STICKY_TEXTS, NOTIF_TEXTS,
@@ -54,6 +55,9 @@ export class DesktopManager {
   private screenW: number;
   private screenH: number;
   private _wallpaperColor: number = WALLPAPER_PALETTES[0].bg;
+
+  /** Optional ThemeLoader — when set, sprite icons are used instead of Graphics icons. */
+  private _themeLoader: ThemeLoader | null = null;
 
   /**
    * Optional theme overrides injected by rebuildWithTheme().
@@ -185,6 +189,16 @@ export class DesktopManager {
   /** Read-only snapshot of current DesktopElements (alive and destroyed). */
   get elements(): DesktopElement[] {
     return this._elements;
+  }
+
+  /**
+   * Wire a ThemeLoader so buildIcons() uses sprite textures when available.
+   * Call once from app.ts after both systems are created.
+   *
+   * @param loader - An initialised ThemeLoader instance.
+   */
+  setThemeLoader(loader: ThemeLoader): void {
+    this._themeLoader = loader;
   }
 
   // ---------------------------------------------------------------------------
@@ -509,15 +523,20 @@ export class DesktopManager {
   }
 
   private buildIcons(count: number): void {
-    const labels = shuffle(ICON_LABELS).slice(0, count);
-
     const cols = 2;
     const spacingX = Math.round(this.screenW * 0.06);
     const spacingY = Math.round(this.screenH * 0.12);
     const startX = Math.round(this.screenW * 0.02);
     const startY = Math.round(this.screenH * 0.04);
 
-    labels.forEach((label, i) => {
+    // Use up to `count` sprites when ThemeLoader is ready, else fall back to ICON_LABELS.
+    const useSprites = this._themeLoader?.isReady ?? false;
+    const iconCount = Math.min(count, useSprites
+      ? (this._themeLoader!.currentTheme.iconFrames.length || count)
+      : ICON_LABELS.length);
+    const labels = shuffle(ICON_LABELS).slice(0, count);
+
+    for (let i = 0; i < iconCount; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = Math.round(startX + col * spacingX + rand(-15, 15));
@@ -525,14 +544,34 @@ export class DesktopManager {
       const color = pick(this._activeIconColors);
       const iconSize = 64;
 
-      const { container: c } = this.factory.createIcon(label, color, iconSize);
+      let displayLabel: string;
+      let c: import('pixi.js').Container;
+
+      if (useSprites) {
+        const texture = this._themeLoader!.getRandomIconTexture();
+        if (texture) {
+          // Derive label from the atlas frame name (e.g. "cat" -> "Cat")
+          const frames = this._themeLoader!.currentTheme.iconFrames;
+          const frameName = frames[i % frames.length] ?? labels[i] ?? `Icon ${i}`;
+          displayLabel = frameName.charAt(0).toUpperCase() + frameName.slice(1);
+          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, iconSize, color));
+        } else {
+          // Atlas loaded but getRandomIconTexture returned null — fall back
+          displayLabel = labels[i] ?? `Icon ${i}`;
+          ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
+        }
+      } else {
+        displayLabel = labels[i] ?? `Icon ${i}`;
+        ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
+      }
+
       c.position.set(x, y);
       this.container.addChild(c);
 
       const el: DesktopElement = {
         id: `el-${nextId++}`,
         type: 'icon',
-        label,
+        label: displayLabel,
         health: DESKTOP_CONFIG.HEALTH.icon,
         maxHealth: DESKTOP_CONFIG.HEALTH.icon,
         destroyed: false,
@@ -543,7 +582,7 @@ export class DesktopManager {
       };
       this._elements.push(el);
       this.containers.push(c);
-    });
+    }
   }
 
   private buildWindows(count: number): void {

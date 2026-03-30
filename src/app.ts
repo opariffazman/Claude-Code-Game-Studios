@@ -68,6 +68,7 @@ export class DeskSmasherApp {
   private chaosMeter!: ChaosMeter;
   private screenShake!: ScreenShake;
   private mouseTools!: MouseToolManager;
+  private themeLoader!: ThemeLoader;
   private themeSystem!: ThemeSystem;
   private rebuildCycle!: RebuildCycle;
   private toolIndicator!: ToolIndicator;
@@ -125,12 +126,24 @@ export class DeskSmasherApp {
     this.damageRegistry = new EffectRegistry();
     registerDamageEffects(this.damageRegistry);
 
-    // 9. Theme System — manages desktop visual themes across rebuilds
-    this.themeSystem = new ThemeSystem();
+    // 9. Theme Loader — manages Kenney atlas loading for all 5 themes.
+    //    Must be ready before ThemeSystem is created and before the first rebuild.
+    this.themeLoader = new ThemeLoader();
+    await this.themeLoader.loadInitialTheme();
+    console.log(
+      `Theme loaded: ${this.themeLoader.currentTheme.name} | Icons: ${this.themeLoader.currentTheme.iconFrames.length}`,
+    );
+
+    // Theme System — delegates asset lifecycle to ThemeLoader, synthesises
+    // the Theme interface consumed by DesktopManager and RebuildCycle.
+    this.themeSystem = new ThemeSystem(this.themeLoader);
 
     // Apply initial theme to the already-built desktop
-    const initialTheme = this.themeSystem.getNextTheme();
+    const initialTheme = this.themeSystem.currentTheme;
     this.desktop.rebuildWithTheme(initialTheme);
+
+    // Start background preload of the next theme so the first rebuild is instant.
+    void this.themeLoader.preloadNextTheme();
 
     // 10. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
@@ -164,7 +177,14 @@ export class DeskSmasherApp {
       this.themeSystem,
       this.app.stage,
       () => {
-        // Called after the new desktop is built: re-sync background and clear ephemeral state.
+        // Called after the new desktop is built. RebuildCycle.updateRebuilding()
+        // already advanced the theme via themeSystem.getNextTheme(). Preload the
+        // next theme for the following rebuild, then re-sync background and clear
+        // ephemeral state.
+        void this.themeLoader.preloadNextTheme();
+        console.log(
+          `Theme rebuild: ${this.themeLoader.currentTheme.name} | Icons: ${this.themeLoader.currentTheme.iconFrames.length}`,
+        );
         this.syncBackground();
         this.particles.clear();
         this.spriteParticles.clear();
@@ -255,16 +275,6 @@ export class DeskSmasherApp {
 
       fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount + this.spriteParticles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
-
-    // PoC: ThemeLoader atlas verification — Phase 1 animal-farm atlas
-    const themeLoader = new ThemeLoader();
-    await themeLoader.loadInitialTheme();
-    console.log(
-      'Theme loaded:',
-      themeLoader.currentTheme.name,
-      'Icons:',
-      themeLoader.currentTheme.iconFrames.length,
-    );
 
     console.log('Desk Smasher production build — Sprint 4');
     console.log('Press any key or click to smash the desktop.');
@@ -437,7 +447,7 @@ export class DeskSmasherApp {
    */
   private syncBackground(): void {
     if (!this.app) return;
-    this.app.renderer.background.color = this.desktop.wallpaperColor;
+    this.app.renderer.background.color = this.themeLoader.currentTheme.wallpaperColor;
   }
 
   // ---------------------------------------------------------------------------
