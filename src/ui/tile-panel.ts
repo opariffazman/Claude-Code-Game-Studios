@@ -30,8 +30,11 @@ const BANNER = {
 };
 
 const SMALL_TILE_DIR = 'assets/kenney/ui/pixel-adventure/small-tiles';
-/** Native 16x16 X icon from the pixel-adventure small tile set */
-const CLOSE_BTN = `${SMALL_TILE_DIR}/tile_0055.png`;
+/**
+ * Native 16×16 close button tile — red bordered square with X mark inside.
+ * Matches the X button shown in the Sample.png WARNING panel (small-tiles row 0, col 4).
+ */
+const CLOSE_BTN = `${SMALL_TILE_DIR}/tile_0004.png`;
 
 export class TilePanelBuilder {
   private _ready = false;
@@ -76,13 +79,14 @@ export class TilePanelBuilder {
       c.addChild(banner);
     }
 
-    // Close button — native 16x16 pixel-art X icon, no stretching
+    // Close button — native 16×16 pixel-art bordered X button, rendered at 2× (32×32).
+    // scaleMode 'nearest' prevents bilinear blurring when the sprite is scaled up.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {
+      closeTex.source.scaleMode = 'nearest';
       const btn = new Sprite(closeTex);
       btn.anchor.set(0.5);
       btn.position.set(w - 14, 20);
-      // Render at 2x native size (32x32) for visibility, keeping pixel-art crisp
       btn.scale.set(2);
       c.addChild(btn);
     }
