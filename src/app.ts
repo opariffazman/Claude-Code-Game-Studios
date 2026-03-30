@@ -138,6 +138,10 @@ export class DeskSmasherApp {
     // the Theme interface consumed by DesktopManager and RebuildCycle.
     this.themeSystem = new ThemeSystem(this.themeLoader);
 
+    // Wire ThemeLoader into DesktopManager so buildIcons() uses sprite textures.
+    // Must be called BEFORE rebuildWithTheme() so the first sprite rebuild works.
+    this.desktop.setThemeLoader(this.themeLoader);
+
     // Apply initial theme to the already-built desktop
     const initialTheme = this.themeSystem.currentTheme;
     this.desktop.rebuildWithTheme(initialTheme);
