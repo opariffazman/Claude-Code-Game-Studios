@@ -21,7 +21,7 @@ const HAMMER_CONFIG = {
   /** Particle count for click impact burst. */
   CLICK_PARTICLES: 20,
   /** Particle count per drag frame. */
-  DRAG_PARTICLES: 6,
+  DRAG_PARTICLES: 3,
   /** Hammer head width (px). */
   HEAD_W: 22,
   /** Hammer head height (px). */

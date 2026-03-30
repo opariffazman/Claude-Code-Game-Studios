@@ -302,7 +302,7 @@ export class DeskSmasherApp {
       }
     } else {
       // Empty space — crack wallpaper + tool AoE
-      this.desktop.crackWallpaper(x, y);
+      this.desktop.crackWallpaper(x, y, this.mouseTools.currentTool);
       this.particles.emit(x, y, 12, { speed: 150, gravity: 200, life: 0.5 });
       this.audioManager.play('crack');
       const toolResult = this.mouseTools.applyTool(x, y, null, this.desktop.elements);

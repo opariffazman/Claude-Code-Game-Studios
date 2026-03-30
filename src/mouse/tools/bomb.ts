@@ -26,7 +26,7 @@ const BOMB_CONFIG = {
   /** Particle count on click. */
   CLICK_PARTICLES: 40,
   /** Particle count on drag (fuse sparks). */
-  DRAG_PARTICLES: 5,
+  DRAG_PARTICLES: 2,
   /** Particle count on drag-end explosion. */
   EXPLODE_PARTICLES: 35,
   /** Bomb body radius (px). */

@@ -30,7 +30,7 @@ const MAGNET_CONFIG = {
   /** Particle count on click. */
   CLICK_PARTICLES: 10,
   /** Particle count per drag frame. */
-  DRAG_PARTICLES: 3,
+  DRAG_PARTICLES: 1,
   /** Particle count on release. */
   FLING_PARTICLES: 20,
   /** Half-width between the two poles (px — center of each arm). */

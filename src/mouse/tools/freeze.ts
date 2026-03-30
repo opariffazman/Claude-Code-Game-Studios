@@ -24,7 +24,7 @@ const FREEZE_CONFIG = {
   /** Particle count on click. */
   CLICK_PARTICLES: 15,
   /** Particle count per drag frame. */
-  DRAG_PARTICLES: 5,
+  DRAG_PARTICLES: 2,
   /** Snowflake arm count (always 6 for a real snowflake). */
   CURSOR_ARMS: 6,
   /** Snowflake main arm length from center (px). */

@@ -218,11 +218,22 @@ export class DesktopManager {
    *
    * @param x - Wallpaper-space X coordinate.
    * @param y - Wallpaper-space Y coordinate.
+   * @param toolName - Active tool name for consistent damage type. Random if omitted.
    */
-  crackWallpaper(x: number, y: number): void {
+  private static readonly TOOL_DAMAGE_MAP: Record<string, number> = {
+    hammer: 0,   // crack lines
+    laser: 1,    // burn mark
+    bomb: 2,     // dent/crater
+    freeze: 4,   // pixel corruption (frost)
+    magnet: 5,   // scratch marks
+  };
+
+  crackWallpaper(x: number, y: number, toolName?: string): void {
     if (this._damageMarkCount >= DesktopManager.MAX_DAMAGE_MARKS) return;
     this._damageMarkCount++;
-    const damageType = Math.floor(Math.random() * 6);
+    const damageType = toolName !== undefined && DesktopManager.TOOL_DAMAGE_MAP[toolName] !== undefined
+      ? DesktopManager.TOOL_DAMAGE_MAP[toolName]
+      : Math.floor(Math.random() * 6);
     const mark = new Graphics();
     mark.position.set(x, y);
 

@@ -31,13 +31,15 @@ const MOUSE_TOOL_CONFIG = {
   DRAG_DAMAGE_THROTTLE_MS: 200,
   /** Impulse applied to elements hit during drag sweep (px/s). */
   DRAG_HIT_IMPULSE: 60,
-  /** Per-tool trail line styles. */
+  /** Max trail segments before clear+restart (prevents GPU geometry bloat). */
+  MAX_TRAIL_SEGMENTS: 80,
+  /** Per-tool trail line styles — single stroke per segment for performance. */
   TRAIL_STYLES: {
-    hammer: { color: 0xff6644, width: 6, alpha: 0.5 },
-    laser:  { color: 0x44ff44, width: 3, alpha: 0.7 },
-    bomb:   { color: 0xff8800, width: 4, alpha: 0.4 },
-    freeze: { color: 0x88ccff, width: 8, alpha: 0.4 },
-    magnet: { color: 0xcc44ff, width: 5, alpha: 0.3 },
+    hammer: { color: 0xff5500, width: 8,  alpha: 0.6 },
+    laser:  { color: 0x44ff44, width: 4,  alpha: 0.8 },
+    bomb:   { color: 0xff8800, width: 6,  alpha: 0.5 },
+    freeze: { color: 0x88ccff, width: 10, alpha: 0.5 },
+    magnet: { color: 0xcc44ff, width: 5,  alpha: 0.6 },
   } as Record<MouseToolType, { color: number; width: number; alpha: number }>,
 } as const;
 
@@ -73,6 +75,12 @@ export class MouseToolManager {
   /** Last known cursor position — exposed via lastPosition getter. */
   private _lastX = 0;
   private _lastY = 0;
+
+  /** Drag frame counter for particle throttling — emit every 3rd frame. */
+  private _dragFrameCount = 0;
+
+  /** Trail segment counter — clear trail when cap is hit. */
+  private _trailSegmentCount = 0;
 
   /** Bound mousemove handler stored for removal on destroy. */
   private readonly _onMouseMove: (e: MouseEvent) => void;
@@ -208,6 +216,10 @@ export class MouseToolManager {
   applyDrag(x: number, y: number, allElements: DesktopElement[]): DesktopElement[] {
     this._lastX = x;
     this._lastY = y;
+    this._dragFrameCount++;
+
+    // Only emit particles every 3rd drag frame to reduce GPU load.
+    const shouldEmitParticles = this._dragFrameCount % 3 === 0;
 
     // First frame of drag — record start point but emit no segment yet.
     if (!this._hasDragStart) {
@@ -215,8 +227,9 @@ export class MouseToolManager {
       this._lastDragX = x;
       this._lastDragY = y;
 
-      // Let the tool start its per-frame effects immediately.
-      TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
+      if (shouldEmitParticles) {
+        TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
+      }
       return this._checkDragHits(x, y, allElements);
     }
 
@@ -226,8 +239,10 @@ export class MouseToolManager {
     this._lastDragX = x;
     this._lastDragY = y;
 
-    // Delegate per-tool drag effect.
-    TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
+    // Delegate per-tool drag effect (throttled).
+    if (shouldEmitParticles) {
+      TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
+    }
 
     // Universal AABB hit detection across all tools.
     return this._checkDragHits(x, y, allElements);
@@ -252,6 +267,8 @@ export class MouseToolManager {
    */
   resetDrag(): void {
     this._hasDragStart = false;
+    this._dragFrameCount = 0;
+    this._trailSegmentCount = 0;
   }
 
   /**
@@ -303,131 +320,21 @@ export class MouseToolManager {
    * Magnet  — electric wavy arc using sine offsets perpendicular to the path.
    */
   private _drawTrailSegment(x0: number, y0: number, x1: number, y1: number): void {
-    const tool = this.currentTool;
-
-    if (tool === 'hammer') {
-      // Three sub-segments with large lateral offsets for a bold jagged strike.
-      // Shadow stroke drawn first (darker, wider) then bright stroke on top.
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      // Perpendicular unit vector.
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len;
-      const ny =  dx / len;
-      const jitter = () => (Math.random() - 0.5) * 30; // ±15 range
-      const mx1 = x0 + dx * 0.33 + nx * jitter();
-      const my1 = y0 + dy * 0.33 + ny * jitter();
-      const mx2 = x0 + dx * 0.66 + nx * jitter();
-      const my2 = y0 + dy * 0.66 + ny * jitter();
-      // Dark shadow stroke behind for depth.
-      this._trail
-        .moveTo(x0, y0)
-        .lineTo(mx1, my1)
-        .lineTo(mx2, my2)
-        .lineTo(x1, y1)
-        .stroke({ color: 0x882200, width: 16, alpha: 0.45 });
-      // Bright primary stroke on top.
-      this._trail
-        .moveTo(x0, y0)
-        .lineTo(mx1, my1)
-        .lineTo(mx2, my2)
-        .lineTo(x1, y1)
-        .stroke({ color: 0xff6644, width: 10, alpha: 0.75 });
-
-    } else if (tool === 'laser') {
-      // Glow triplet: wide dim halo → medium mid-layer → thin bright core.
-      this._trail
-        .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0x44ff44, width: 16, alpha: 0.35 });
-      this._trail
-        .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0x88ff88, width: 7, alpha: 0.5 });
-      this._trail
-        .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0xeeffee, width: 4, alpha: 0.95 });
-
-    } else if (tool === 'bomb') {
-      // Dotted pattern: circles every 5px, each with an orange glow behind.
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
-      const step = 5;
-      const count = Math.max(1, Math.floor(segLen / step));
-      for (let i = 0; i <= count; i++) {
-        const t = i / count;
-        const cx = x0 + dx * t;
-        const cy = y0 + dy * t;
-        // Orange glow halo behind each dot.
-        this._trail.circle(cx, cy, 10).fill({ color: 0xff6600, alpha: 0.2 });
-        // Solid bright dot on top.
-        this._trail.circle(cx, cy, 6).fill({ color: 0xff8800, alpha: 0.75 });
-      }
-
-    } else if (tool === 'freeze') {
-      // Wide frosted band (semi-transparent), inner bright band, then white speckles.
-      this._trail
-        .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0x88ccff, width: 20, alpha: 0.3 });
-      this._trail
-        .moveTo(x0, y0).lineTo(x1, y1)
-        .stroke({ color: 0xddeeff, width: 6, alpha: 0.55 });
-      // Scatter denser, larger white speckle dots along the segment.
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / segLen;
-      const ny =  dx / segLen;
-      const speckleCount = Math.max(3, Math.floor(segLen / 8));
-      for (let i = 0; i < speckleCount; i++) {
-        const t = (i + 0.5) / speckleCount;
-        const offset = (Math.random() - 0.5) * 14;
-        const sx = x0 + dx * t + nx * offset;
-        const sy = y0 + dy * t + ny * offset;
-        this._trail.circle(sx, sy, 3).fill({ color: 0xffffff, alpha: 0.85 });
-      }
-
-    } else {
-      // Magnet — bold double-helix: two sine waves with offset phase.
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / segLen;
-      const ny =  dx / segLen;
-      const steps = Math.max(4, Math.floor(segLen / 6));
-
-      // Build two wave point arrays with opposite phase for a double-helix look.
-      const waveA: number[] = [x0, y0];
-      const waveB: number[] = [x0, y0];
-      for (let i = 1; i < steps; i++) {
-        const t = i / steps;
-        const waveAmp = Math.sin(t * Math.PI * 4) * 12;
-        waveA.push(
-          x0 + dx * t + nx * waveAmp,
-          y0 + dy * t + ny * waveAmp,
-        );
-        waveB.push(
-          x0 + dx * t + nx * -waveAmp,
-          y0 + dy * t + ny * -waveAmp,
-        );
-      }
-      waveA.push(x1, y1);
-      waveB.push(x1, y1);
-
-      // Draw strand A (bright purple).
-      for (let i = 0; i < waveA.length - 2; i += 2) {
-        this._trail
-          .moveTo(waveA[i], waveA[i + 1])
-          .lineTo(waveA[i + 2], waveA[i + 3])
-          .stroke({ color: 0xdd88ff, width: 4, alpha: 0.75 });
-      }
-      // Draw strand B (deeper purple), offset phase creates helix illusion.
-      for (let i = 0; i < waveB.length - 2; i += 2) {
-        this._trail
-          .moveTo(waveB[i], waveB[i + 1])
-          .lineTo(waveB[i + 2], waveB[i + 3])
-          .stroke({ color: 0xaa44ee, width: 4, alpha: 0.6 });
-      }
+    // Cap: clear and restart when too many segments have accumulated.
+    if (this._trailSegmentCount >= MOUSE_TOOL_CONFIG.MAX_TRAIL_SEGMENTS) {
+      this._trail.clear();
+      this._trailSegmentCount = 0;
     }
+
+    // Single stroke per segment — performant, still visually distinct via width/color.
+    const s = MOUSE_TOOL_CONFIG.TRAIL_STYLES[this.currentTool as MouseToolType]
+      ?? MOUSE_TOOL_CONFIG.TRAIL_STYLES.hammer;
+    this._trail
+      .moveTo(x0, y0)
+      .lineTo(x1, y1)
+      .stroke({ color: s.color, width: s.width, alpha: s.alpha });
+
+    this._trailSegmentCount++;
   }
 
   /**
