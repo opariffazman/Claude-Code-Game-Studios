@@ -192,8 +192,10 @@ export class MouseTrail {
     const canvas = document.querySelector('canvas');
     if (canvas) {
       this._canvasRect = canvas.getBoundingClientRect();
-      this._canvasScaleX = canvas.width / this._canvasRect.width;
-      this._canvasScaleY = canvas.height / this._canvasRect.height;
+      // With autoDensity: true, PixiJS maps CSS pixels to stage coords.
+      // Do NOT scale by devicePixelRatio — just subtract offset.
+      this._canvasScaleX = 1;
+      this._canvasScaleY = 1;
     }
   }
 
