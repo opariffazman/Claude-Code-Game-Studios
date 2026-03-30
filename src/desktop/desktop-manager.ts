@@ -503,7 +503,8 @@ export class DesktopManager {
     this.buildTaskbar();
     this.buildIcons(randInt(DESKTOP_CONFIG.ICONS.min, DESKTOP_CONFIG.ICONS.max));
     this.buildWindows(randInt(DESKTOP_CONFIG.WINDOWS.min, DESKTOP_CONFIG.WINDOWS.max));
-    this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
+    // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
+    // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
@@ -603,9 +604,10 @@ export class DesktopManager {
     // Implements: desk-smasher-qnn — scatter icons randomly across the full desktop.
     const labels = shuffle(ICON_LABELS).slice(0, iconCount);
 
-    // Sprite natural size: 154x132 px (animal sheet). Scale to 60% for desktop comfort.
-    // Implements: desk-smasher-8lo — use actual sprite dimensions, not a 64px square.
-    const SPRITE_SCALE = 0.6;
+    // Implements: desk-smasher-377 — scale animals relative to viewport, not fixed pixels.
+    // On a 1920px screen this gives ~0.96 * 0.6 = ~0.48 effective scale; on a 600px screen ~0.3.
+    const baseScale = Math.min(this.screenW, this.screenH) / 1200;
+    const SPRITE_SCALE = baseScale * 0.6;
 
     const margin = 80;
     const taskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT;
@@ -687,8 +689,8 @@ export class DesktopManager {
   }
 
   private buildWindows(count: number): void {
-    // Cap at 4 windows to avoid clutter when animals are on screen.
-    const cappedCount = Math.min(count, 4);
+    // Implements: desk-smasher-377 — cap at 2-3 windows, smaller size ranges to reduce clutter.
+    const cappedCount = Math.min(count, 3);
     const titles = shuffle(WINDOW_TITLES).slice(0, cappedCount);
 
     // Priority: TilePanelBuilder (tile-based) > ThemeLoader sprite panel > Graphics fallback.
@@ -696,8 +698,8 @@ export class DesktopManager {
     const styles: PanelStyle[] = ['beige', 'brown', 'blue', 'dark'];
 
     titles.forEach((title, i) => {
-      const w = Math.round(rand(0.15, 0.32) * this.screenW);
-      const h = Math.round(rand(0.20, 0.40) * this.screenH);
+      const w = randInt(Math.round(this.screenW * 0.12), Math.round(this.screenW * 0.20));
+      const h = randInt(Math.round(this.screenH * 0.15), Math.round(this.screenH * 0.25));
       const x = Math.round(rand(0.18, 0.65) * this.screenW);
       const y = Math.round(rand(0.05, 0.55) * this.screenH);
       const titleColor = this._activeTitlebarColors[i % this._activeTitlebarColors.length];
