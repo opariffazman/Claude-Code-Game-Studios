@@ -1,7 +1,12 @@
 /**
- * Tile Panel Builder — assembles windows from Kenney pixel-adventure tiles.
+ * Tile Panel Builder — uses NineSliceSprite for proper pixel-art panel scaling.
+ * Implements: UI chrome spec (Kenney pixel-adventure tiles).
+ *
+ * Borders are preserved at original pixel size; only the center stretches.
+ * Panel tiles (tile_0000–tile_0003) are 32×32 with ~4px visible borders.
+ * BORDER_INSET of 8px gives the nine-slice room to keep those borders crisp.
  */
-import { Assets, Container, Sprite, Texture } from 'pixi.js';
+import { Assets, Container, NineSliceSprite, Sprite, Texture } from 'pixi.js';
 
 export type PanelStyle = 'beige' | 'brown' | 'blue' | 'dark';
 
@@ -11,14 +16,17 @@ const ADV_DIR = 'assets/kenney/ui/adventure';
 const PANEL_TILES: Record<PanelStyle, string> = {
   beige: `${TILE_DIR}/tile_0000.png`,
   brown: `${TILE_DIR}/tile_0001.png`,
-  blue: `${TILE_DIR}/tile_0002.png`,
-  dark: `${TILE_DIR}/tile_0003.png`,
+  blue:  `${TILE_DIR}/tile_0002.png`,
+  dark:  `${TILE_DIR}/tile_0003.png`,
 };
 
+/** Border inset for NineSliceSprite — pixels from each edge kept unscaled. */
+const BORDER_INSET = 8;
+
 const BANNER = {
-  left: `${TILE_DIR}/tile_0043.png`,
+  left:   `${TILE_DIR}/tile_0043.png`,
   center: `${TILE_DIR}/tile_0044.png`,
-  right: `${TILE_DIR}/tile_0045.png`,
+  right:  `${TILE_DIR}/tile_0045.png`,
 };
 
 const CLOSE_BTN = `${ADV_DIR}/close_red.png`;
@@ -37,16 +45,27 @@ export class TilePanelBuilder {
 
   get isReady(): boolean { return this._ready; }
 
+  /**
+   * Build a complete window: NineSlice panel background + banner title bar
+   * + close button.
+   */
   buildWindow(style: PanelStyle, w: number, h: number): Container {
     const c = new Container();
     c.label = `window-${style}`;
 
+    // NineSliceSprite panel — corners stay at original pixel size, center fills.
     const panelTex = Assets.get<Texture>(PANEL_TILES[style]);
     if (panelTex) {
-      const bg = new Sprite(panelTex);
-      bg.width = w;
-      bg.height = h;
-      c.addChild(bg);
+      const panel = new NineSliceSprite({
+        texture:      panelTex,
+        leftWidth:    BORDER_INSET,
+        topHeight:    BORDER_INSET,
+        rightWidth:   BORDER_INSET,
+        bottomHeight: BORDER_INSET,
+        width:        w,
+        height:       h,
+      });
+      c.addChild(panel);
     }
 
     const banner = this.buildBanner(w - 16);
@@ -60,7 +79,7 @@ export class TilePanelBuilder {
       const btn = new Sprite(closeTex);
       btn.anchor.set(0.5);
       btn.position.set(w - 16, 20);
-      btn.width = 24;
+      btn.width  = 24;
       btn.height = 24;
       c.addChild(btn);
     }
@@ -68,38 +87,59 @@ export class TilePanelBuilder {
     return c;
   }
 
-  buildPanel(style: PanelStyle, w: number, h: number): Sprite | null {
+  /**
+   * Build a bare panel (no window chrome) using NineSliceSprite.
+   * Returns null if the texture has not been preloaded yet.
+   */
+  buildPanel(style: PanelStyle, w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(PANEL_TILES[style]);
     if (!tex) return null;
-    const s = new Sprite(tex);
-    s.width = w;
-    s.height = h;
-    return s;
+    return new NineSliceSprite({
+      texture:      tex,
+      leftWidth:    BORDER_INSET,
+      topHeight:    BORDER_INSET,
+      rightWidth:   BORDER_INSET,
+      bottomHeight: BORDER_INSET,
+      width:        w,
+      height:       h,
+    });
   }
 
+  /**
+   * Build a red banner from three tiles: fixed left/right end-caps and a
+   * NineSlice center piece that stretches to fill the remaining width.
+   */
   buildBanner(width: number): Container | null {
     const lTex = Assets.get<Texture>(BANNER.left);
     const cTex = Assets.get<Texture>(BANNER.center);
     const rTex = Assets.get<Texture>(BANNER.right);
     if (!lTex || !cTex || !rTex) return null;
 
-    const c = new Container();
-    const tw = 32;
+    const c  = new Container();
+    const tw = 32; // tile width of each end-cap
 
     const left = new Sprite(lTex);
-    left.width = tw;
+    left.width  = tw;
     left.height = 32;
     c.addChild(left);
 
-    const center = new Sprite(cTex);
+    // Center piece uses NineSlice so it stretches cleanly without distorting
+    // the subtle pixel-art shading at its edges.
+    const center = new NineSliceSprite({
+      texture:      cTex,
+      leftWidth:    4,
+      topHeight:    4,
+      rightWidth:   4,
+      bottomHeight: 4,
+      width:        Math.max(0, width - tw * 2),
+      height:       32,
+    });
     center.position.set(tw, 0);
-    center.width = Math.max(0, width - tw * 2);
-    center.height = 32;
     c.addChild(center);
 
     const right = new Sprite(rTex);
     right.position.set(width - tw, 0);
-    right.width = tw;
+    right.width  = tw;
     right.height = 32;
     c.addChild(right);
 
