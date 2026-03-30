@@ -248,8 +248,8 @@ export class MouseToolManager {
       (x - this._lastDragX) ** 2 + (y - this._lastDragY) ** 2,
     );
 
-    // Draw tool-specific trail segment.
-    this._drawTrailSegment(this._lastDragX, this._lastDragY, x, y);
+    // Trail line removed — wallpaper stamps are the sole drag visual.
+    // this._drawTrailSegment(this._lastDragX, this._lastDragY, x, y);
 
     this._lastDragX = x;
     this._lastDragY = y;
