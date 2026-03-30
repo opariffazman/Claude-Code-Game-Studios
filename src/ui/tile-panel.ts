@@ -29,7 +29,9 @@ const BANNER = {
   right:  `${TILE_DIR}/tile_0045.png`,
 };
 
-const CLOSE_BTN = `${ADV_DIR}/close_red.png`;
+const SMALL_TILE_DIR = 'assets/kenney/ui/pixel-adventure/small-tiles';
+/** Native 16x16 X icon from the pixel-adventure small tile set */
+const CLOSE_BTN = `${SMALL_TILE_DIR}/tile_0055.png`;
 
 export class TilePanelBuilder {
   private _ready = false;
@@ -74,13 +76,14 @@ export class TilePanelBuilder {
       c.addChild(banner);
     }
 
+    // Close button — native 16x16 pixel-art X icon, no stretching
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {
       const btn = new Sprite(closeTex);
       btn.anchor.set(0.5);
-      btn.position.set(w - 16, 20);
-      btn.width  = 24;
-      btn.height = 24;
+      btn.position.set(w - 14, 20);
+      // Render at 2x native size (32x32) for visibility, keeping pixel-art crisp
+      btn.scale.set(2);
       c.addChild(btn);
     }
 
