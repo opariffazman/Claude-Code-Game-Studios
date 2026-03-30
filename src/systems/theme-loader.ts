@@ -27,6 +27,16 @@ export interface ThemeAssets {
   iconAtlas?: string;
   /** UI panel atlas path (for window chrome — Phase 2) */
   uiAtlas?: string;
+  /** UI chrome sprite paths (relative to public/) */
+  ui?: {
+    windowPanel?: string;   // Window background panel
+    titleBar?: string;      // Title bar panel
+    closeButton?: string;   // Close/X button
+    stickyPanel?: string;   // Sticky note panel
+    notifBar?: string;      // Notification bar
+  };
+  /** Loaded UI textures (populated after loading) */
+  uiTextures?: Record<string, Texture>;
   /** Wallpaper color */
   wallpaperColor: number;
   /** Populated after loading — texture references in shuffle order.
@@ -49,6 +59,9 @@ const THEMES: ThemeAssets[] = [
       'owl', 'panda', 'parrot', 'penguin', 'pig', 'rabbit',
       'rhino', 'sloth', 'snake', 'walrus', 'whale', 'zebra',
     ],
+    ui: {
+      windowPanel: 'assets/kenney/ui/adventure/panel_brown.png',
+    },
     wallpaperColor: 0x5b8c3e,  // Soft forest green — better contrast with bright animal sprites
     iconTextures: [],
     iconFrames: [],
@@ -207,12 +220,37 @@ export class ThemeLoader {
     return this._ready;
   }
 
+  /**
+   * Get a loaded UI texture by key (e.g. 'windowPanel').
+   * Returns null if the current theme has no UI textures or the key is absent.
+   */
+  getUITexture(key: string): Texture | null {
+    return this.currentTheme.uiTextures?.[key] ?? null;
+  }
+
   /** Dispatch to individual-PNG or atlas loader based on theme config. */
   private async _loadTheme(theme: ThemeAssets): Promise<void> {
     if (theme.iconDir && theme.iconFiles) {
       await this._loadThemeIcons(theme);
     } else if (theme.iconAtlas) {
       await this._loadAtlas(theme);
+    }
+
+    // Load UI chrome sprites if the theme declares any.
+    if (theme.ui) {
+      const uiPaths = Object.entries(theme.ui).filter(([, v]) => v) as [string, string][];
+      const urls = uiPaths.map(([, path]) => path);
+      if (urls.length > 0) {
+        try {
+          const loaded: Record<string, Texture> = await Assets.load(urls);
+          theme.uiTextures = {};
+          for (const [key, path] of uiPaths) {
+            theme.uiTextures[key] = loaded[path] ?? (Assets.get(path) as Texture);
+          }
+        } catch (e) {
+          console.warn(`ThemeLoader: failed to load UI chrome sprites for "${theme.name}"`, e);
+        }
+      }
     }
   }
 

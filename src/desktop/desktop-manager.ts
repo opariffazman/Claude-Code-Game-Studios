@@ -17,7 +17,7 @@
  * PixiJS v8: uses Graphics method-chain API (.rect().fill()), new Text({text,style}),
  * and container.label for node naming.
  */
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
 import { DESKTOP_CONFIG } from '../config';
 import {
@@ -482,6 +482,7 @@ export class DesktopManager {
     this.buildWallpaper(palette);
     this.buildTaskbar();
     this.buildIcons(randInt(DESKTOP_CONFIG.ICONS.min, DESKTOP_CONFIG.ICONS.max));
+    this.buildWindows(randInt(DESKTOP_CONFIG.WINDOWS.min, DESKTOP_CONFIG.WINDOWS.max));
 
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
@@ -618,7 +619,12 @@ export class DesktopManager {
   }
 
   private buildWindows(count: number): void {
-    const titles = shuffle(WINDOW_TITLES).slice(0, count);
+    // Cap at 4 windows to avoid clutter when animals are on screen.
+    const cappedCount = Math.min(count, 4);
+    const titles = shuffle(WINDOW_TITLES).slice(0, cappedCount);
+
+    // Use sprite panel if the theme has loaded one, otherwise fall back to Graphics.
+    const windowTexture: Texture | null = this._themeLoader?.getUITexture('windowPanel') ?? null;
 
     titles.forEach((title, i) => {
       const w = Math.round(rand(0.15, 0.32) * this.screenW);
@@ -627,7 +633,14 @@ export class DesktopManager {
       const y = Math.round(rand(0.05, 0.55) * this.screenH);
       const titleColor = this._activeTitlebarColors[i % this._activeTitlebarColors.length];
 
-      const { container: c } = this.factory.createWindow(title, w, h, titleColor);
+      let c: Container;
+
+      if (windowTexture) {
+        c = this._buildSpriteWindow(title, w, h, titleColor, windowTexture);
+      } else {
+        ({ container: c } = this.factory.createWindow(title, w, h, titleColor));
+      }
+
       c.position.set(x, y);
       this.container.addChild(c);
 
@@ -644,6 +657,69 @@ export class DesktopManager {
       this._elements.push(el);
       this.containers.push(c);
     });
+  }
+
+  /**
+   * Builds a window container using a Kenney UI sprite panel as the background.
+   * The panel is stretched to fill (w x h). Title bar, close button, and faux
+   * content lines are rendered on top via Graphics/Text, matching the Graphics
+   * window layout.
+   *
+   * PixiJS v8: Sprite(texture) + width/height assignment stretches the texture.
+   */
+  private _buildSpriteWindow(
+    title: string,
+    w: number,
+    h: number,
+    titleColor: number,
+    panelTexture: Texture,
+  ): Container {
+    const container = new Container();
+    container.label = `window-${title}`;
+
+    const titleBarH = 32;
+
+    // Shadow behind panel
+    const shadow = new Graphics()
+      .roundRect(3, 3, w, h, 8)
+      .fill({ color: 0x000000, alpha: 0.2 });
+    container.addChild(shadow);
+
+    // Sprite panel stretched to window dimensions
+    const panel = new Sprite(panelTexture);
+    panel.width = w;
+    panel.height = h;
+    container.addChild(panel);
+
+    // Title bar overlay
+    const titleBar = new Graphics()
+      .roundRect(0, 0, w, titleBarH, 8)
+      .fill({ color: titleColor, alpha: 0.9 })
+      .rect(0, titleBarH - 8, w, 8)
+      .fill({ color: titleColor, alpha: 0.9 });
+    container.addChild(titleBar);
+
+    const titleStyle = new TextStyle({ fontSize: 13, fill: 0xffffff, fontFamily: 'sans-serif' });
+    const titleText = new Text({ text: title, style: titleStyle });
+    titleText.position.set(10, 7);
+    container.addChild(titleText);
+
+    // Close button
+    const closeBtn = new Graphics()
+      .circle(w - 18, titleBarH / 2, 8)
+      .fill(0xff4444);
+    container.addChild(closeBtn);
+
+    // Faux content lines
+    const contentGfx = new Graphics();
+    for (let line = 0; line < 6; line++) {
+      const lineW = 60 + Math.random() * (w - 100);
+      contentGfx.rect(15, titleBarH + 15 + line * 22, lineW, 10)
+        .fill({ color: 0x000000, alpha: 0.1 });
+    }
+    container.addChild(contentGfx);
+
+    return container;
   }
 
   private buildStickies(count: number): void {
