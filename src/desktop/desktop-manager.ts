@@ -47,9 +47,9 @@ export class DesktopManager {
   private _totalHealth = 0;
   private _currentHealth = 0;
 
-  /** Count of active wallpaper damage marks — capped at MAX_DAMAGE_MARKS. */
-  private _damageMarkCount = 0;
-  private static readonly MAX_DAMAGE_MARKS = 50;
+  /** Active wallpaper damage marks — oldest removed when cap is hit. */
+  private _damageMarks: import('pixi.js').Graphics[] = [];
+  private static readonly MAX_DAMAGE_MARKS = 20;
 
   private screenW: number;
   private screenH: number;
@@ -229,8 +229,13 @@ export class DesktopManager {
   };
 
   crackWallpaper(x: number, y: number, toolName?: string): void {
-    if (this._damageMarkCount >= DesktopManager.MAX_DAMAGE_MARKS) return;
-    this._damageMarkCount++;
+    // Remove oldest mark when cap is hit (FIFO)
+    if (this._damageMarks.length >= DesktopManager.MAX_DAMAGE_MARKS) {
+      const oldest = this._damageMarks.shift();
+      if (oldest) {
+        oldest.destroy();
+      }
+    }
     const damageType = toolName !== undefined && DesktopManager.TOOL_DAMAGE_MAP[toolName] !== undefined
       ? DesktopManager.TOOL_DAMAGE_MAP[toolName]
       : Math.floor(Math.random() * 6);
@@ -330,6 +335,7 @@ export class DesktopManager {
     } else {
       this.container.addChild(mark);
     }
+    this._damageMarks.push(mark);
   }
 
   // ---------------------------------------------------------------------------
@@ -396,7 +402,7 @@ export class DesktopManager {
     this.container.removeChildren();
     this._elements = [];
     this.containers = [];
-    this._damageMarkCount = 0;
+    this._damageMarks = [];
     this.factory.resetIconCount();
     this.buildDesktop();
   }
