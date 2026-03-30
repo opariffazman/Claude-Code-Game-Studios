@@ -116,26 +116,14 @@ export class ElementFactory {
     const container = new Container();
     container.label = `icon-${label}`;
 
-    // Sprite icon — scaled to fill the icon area, no background rect
+    // Sprite icon — scaled to 85% of icon area so the full sprite fits with margin
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
     const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
-    const iconScale = size / maxDim;
+    const iconScale = (size * 0.85) / maxDim;
     sprite.scale.set(iconScale);
     sprite.position.set(size / 2, size / 2);
     container.addChild(sprite);
-
-    // Label below
-    const labelStyle = new TextStyle({
-      fontSize: 11,
-      fill: 0xffffff,
-      fontFamily: 'sans-serif',
-      align: 'center',
-    });
-    const labelText = new Text({ text: label, style: labelStyle });
-    labelText.anchor.set(0.5, 0);
-    labelText.position.set(size / 2, size + 4);
-    container.addChild(labelText);
 
     // Return sprite as gfx so damage tinting works on the sprite itself
     return { container, gfx: sprite as unknown as Graphics };

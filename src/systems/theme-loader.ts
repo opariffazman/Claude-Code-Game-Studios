@@ -68,6 +68,9 @@ export class ThemeLoader {
   private _loadedAtlases = new Set<string>();
   private _ready = false;
 
+  private _shuffledFrames: string[] = [];
+  private _shuffleIndex = 0;
+
   /** Load the starting theme's atlas. */
   async loadInitialTheme(): Promise<void> {
     const theme = THEMES[this._currentThemeIndex];
@@ -113,6 +116,8 @@ export class ThemeLoader {
   /**
    * Get a random icon texture from the current theme's loaded atlas.
    * Returns null if the loader is not ready or the atlas has no frames.
+   *
+   * @deprecated Use getNextIconTexture() to avoid duplicate icons per desktop.
    */
   getRandomIconTexture(): Texture | null {
     if (!this._ready) return null;
@@ -120,6 +125,38 @@ export class ThemeLoader {
     if (theme.iconFrames.length === 0) return null;
     const frame = theme.iconFrames[Math.floor(Math.random() * theme.iconFrames.length)];
     return (Assets.get<Texture>(frame) as Texture | undefined) ?? null;
+  }
+
+  /**
+   * Get the next unique icon texture using a shuffle-based approach so no
+   * duplicate frames appear within a single desktop build.
+   * Reshuffles the full frame list when exhausted.
+   * Returns null if the loader is not ready or the atlas has no frames.
+   */
+  getNextIconTexture(): Texture | null {
+    if (!this._ready) return null;
+    const theme = this.currentTheme;
+    if (theme.iconFrames.length === 0) return null;
+
+    // Reshuffle when exhausted
+    if (this._shuffleIndex >= this._shuffledFrames.length) {
+      this._shuffledFrames = [...theme.iconFrames];
+      // Fisher-Yates shuffle
+      for (let i = this._shuffledFrames.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this._shuffledFrames[i], this._shuffledFrames[j]] = [this._shuffledFrames[j], this._shuffledFrames[i]];
+      }
+      this._shuffleIndex = 0;
+    }
+
+    const frame = this._shuffledFrames[this._shuffleIndex++];
+    return Assets.get(frame) ?? null;
+  }
+
+  /** Reset the shuffle state for a new desktop build — call before buildIcons(). */
+  resetShuffle(): void {
+    this._shuffleIndex = 0;
+    this._shuffledFrames = [];
   }
 
   /**

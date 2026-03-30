@@ -473,6 +473,9 @@ export class DesktopManager {
     this._themeTitlebarColors = null;
     this._themeStickyColors = null;
 
+    // Reset icon shuffle so each new desktop gets unique icons in a different order.
+    this._themeLoader?.resetShuffle();
+
     this._wallpaperColor = palette.bg;
     this.buildWallpaper(palette);
     this.buildTaskbar();
@@ -548,7 +551,7 @@ export class DesktopManager {
       let c: import('pixi.js').Container;
 
       if (useSprites) {
-        const texture = this._themeLoader!.getRandomIconTexture();
+        const texture = this._themeLoader!.getNextIconTexture();
         if (texture) {
           // Derive label from the atlas frame name (e.g. "cat" -> "Cat")
           const frames = this._themeLoader!.currentTheme.iconFrames;
