@@ -45,6 +45,7 @@ import { ChaosMeter } from './systems/chaos-meter';
 import { ScreenShake } from './vfx/screen-shake';
 import { MouseTrail } from './vfx/mouse-trail';
 import { ThemeSystem } from './systems/theme-system';
+import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
 import type { SoundType } from './types';
@@ -254,6 +255,16 @@ export class DeskSmasherApp {
 
       fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount + this.spriteParticles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
+
+    // PoC: ThemeLoader atlas verification — Phase 1 animal-farm atlas
+    const themeLoader = new ThemeLoader();
+    await themeLoader.loadInitialTheme();
+    console.log(
+      'Theme loaded:',
+      themeLoader.currentTheme.name,
+      'Icons:',
+      themeLoader.currentTheme.iconFrames.length,
+    );
 
     console.log('Desk Smasher production build — Sprint 4');
     console.log('Press any key or click to smash the desktop.');
