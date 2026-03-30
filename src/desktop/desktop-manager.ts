@@ -19,6 +19,7 @@
  */
 import { Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
+import type { TilePanelBuilder, PanelStyle } from '../ui/tile-panel';
 import { DESKTOP_CONFIG } from '../config';
 import {
   WALLPAPER_PALETTES, ICON_LABELS, WINDOW_TITLES, STICKY_TEXTS, NOTIF_TEXTS,
@@ -58,6 +59,9 @@ export class DesktopManager {
 
   /** Optional ThemeLoader — when set, sprite icons are used instead of Graphics icons. */
   private _themeLoader: ThemeLoader | null = null;
+
+  /** Optional TilePanelBuilder — when set and ready, tile-based windows are used. */
+  private _tilePanelBuilder: TilePanelBuilder | null = null;
 
   /**
    * Optional theme overrides injected by rebuildWithTheme().
@@ -201,6 +205,16 @@ export class DesktopManager {
    */
   setThemeLoader(loader: ThemeLoader): void {
     this._themeLoader = loader;
+  }
+
+  /**
+   * Wire a TilePanelBuilder so buildWindows() uses Kenney tile panels when ready.
+   * Call once from app.ts after preload() has completed.
+   *
+   * @param builder - An initialised TilePanelBuilder instance.
+   */
+  setTilePanelBuilder(builder: TilePanelBuilder): void {
+    this._tilePanelBuilder = builder;
   }
 
   // ---------------------------------------------------------------------------
@@ -623,8 +637,9 @@ export class DesktopManager {
     const cappedCount = Math.min(count, 4);
     const titles = shuffle(WINDOW_TITLES).slice(0, cappedCount);
 
-    // Use sprite panel if the theme has loaded one, otherwise fall back to Graphics.
+    // Priority: TilePanelBuilder (tile-based) > ThemeLoader sprite panel > Graphics fallback.
     const windowTexture: Texture | null = this._themeLoader?.getUITexture('windowPanel') ?? null;
+    const styles: PanelStyle[] = ['beige', 'brown', 'blue', 'dark'];
 
     titles.forEach((title, i) => {
       const w = Math.round(rand(0.15, 0.32) * this.screenW);
@@ -635,13 +650,20 @@ export class DesktopManager {
 
       let c: Container;
 
-      if (windowTexture) {
+      if (this._tilePanelBuilder?.isReady) {
+        // Use tile panels — each window gets a cycling PanelStyle.
+        const style = styles[i % styles.length];
+        const windowContainer = this._tilePanelBuilder.buildWindow(style, w, h);
+        windowContainer.position.set(x, y);
+        c = windowContainer;
+      } else if (windowTexture) {
         c = this._buildSpriteWindow(title, w, h, titleColor, windowTexture);
+        c.position.set(x, y);
       } else {
         ({ container: c } = this.factory.createWindow(title, w, h, titleColor));
+        c.position.set(x, y);
       }
 
-      c.position.set(x, y);
       this.container.addChild(c);
 
       const el: DesktopElement = {

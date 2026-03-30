@@ -48,6 +48,7 @@ import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
+import { TilePanelBuilder } from './ui/tile-panel';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -72,6 +73,7 @@ export class DeskSmasherApp {
   private themeSystem!: ThemeSystem;
   private rebuildCycle!: RebuildCycle;
   private toolIndicator!: ToolIndicator;
+  private tilePanelBuilder!: TilePanelBuilder;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -145,6 +147,11 @@ export class DeskSmasherApp {
     // then trigger the first build. This is the only build — no un-themed flash.
     // Implements: desk-smasher-8l3 — constructor deferred; first build is here.
     this.desktop.setThemeLoader(this.themeLoader);
+
+    this.tilePanelBuilder = new TilePanelBuilder();
+    await this.tilePanelBuilder.preload();
+    this.desktop.setTilePanelBuilder(this.tilePanelBuilder);
+
     const initialTheme = this.themeSystem.currentTheme;
     this.desktop.rebuildWithTheme(initialTheme);
 
