@@ -47,6 +47,7 @@ import { MouseTrail } from './vfx/mouse-trail';
 import { ThemeSystem } from './systems/theme-system';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
+import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
 const RESIZE_DEBOUNCE_MS = 200;
@@ -200,9 +201,16 @@ export class DeskSmasherApp {
     // 15. Wire drag events to mouse tools
     this.inputManager.onDrag((x, y) => {
       if (this.rebuildCycle.isTransitioning) return;
-      const hitElements = this.mouseTools.applyDrag(x, y, this.desktop.elements);
-      for (const el of hitElements) {
+      const result = this.mouseTools.applyDrag(x, y, this.desktop.elements);
+      for (const el of result.hitElements) {
         if (!el.destroyed) this.hitElementToolAware(el);
+      }
+      // Implements desk-smasher-7cc: periodic wallpaper stamp + sound during drag.
+      if (result.stamp) {
+        this.desktop.crackWallpaper(result.stamp.x, result.stamp.y, this.mouseTools.currentTool);
+        const sound: SoundType =
+          DeskSmasherApp.TOOL_DRAG_SOUNDS[this.mouseTools.currentTool] ?? 'crack';
+        this.audioManager.play(sound);
       }
     });
 
@@ -317,6 +325,18 @@ export class DeskSmasherApp {
    * and sprite particles. The active tool handles all visual/audio effects
    * via applyTool(), so we don't add random registry effects on top.
    */
+  /**
+   * Maps each mouse tool to a SoundType for the periodic drag stamp sound.
+   * Implements: desk-smasher-7cc — wallpaper damage marks + sound during drag.
+   */
+  private static readonly TOOL_DRAG_SOUNDS: Record<string, SoundType> = {
+    hammer: 'crack',
+    laser:  'zap',
+    bomb:   'pop',
+    freeze: 'tinkle',
+    magnet: 'vortex',
+  };
+
   /**
    * Maps each mouse tool to a specific destruction effect name for consistent
    * visual identity. Hammer always shatters, bomb always explodes, etc.

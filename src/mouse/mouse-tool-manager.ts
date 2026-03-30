@@ -82,6 +82,12 @@ export class MouseToolManager {
   /** Trail segment counter — clear trail when cap is hit. */
   private _trailSegmentCount = 0;
 
+  /** Accumulated drag distance for periodic wallpaper-stamp throttling. */
+  private _dragDistAccum = 0;
+
+  /** Minimum drag distance (px) between consecutive wallpaper damage stamps. */
+  private static readonly STAMP_INTERVAL_PX = 40;
+
   /** Bound mousemove handler stored for removal on destroy. */
   private readonly _onMouseMove: (e: MouseEvent) => void;
 
@@ -213,7 +219,11 @@ export class MouseToolManager {
    * @param allElements - All active desktop elements.
    * @returns Elements whose bounding box the cursor crossed this frame.
    */
-  applyDrag(x: number, y: number, allElements: DesktopElement[]): DesktopElement[] {
+  applyDrag(
+    x: number,
+    y: number,
+    allElements: DesktopElement[],
+  ): { hitElements: DesktopElement[]; stamp: { x: number; y: number } | null } {
     this._lastX = x;
     this._lastY = y;
     this._dragFrameCount++;
@@ -230,8 +240,13 @@ export class MouseToolManager {
       if (shouldEmitParticles) {
         TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
       }
-      return this._checkDragHits(x, y, allElements);
+      return { hitElements: this._checkDragHits(x, y, allElements), stamp: null };
     }
+
+    // Measure this segment's length BEFORE updating _lastDragX/Y.
+    const segDist = Math.sqrt(
+      (x - this._lastDragX) ** 2 + (y - this._lastDragY) ** 2,
+    );
 
     // Draw tool-specific trail segment.
     this._drawTrailSegment(this._lastDragX, this._lastDragY, x, y);
@@ -239,13 +254,21 @@ export class MouseToolManager {
     this._lastDragX = x;
     this._lastDragY = y;
 
+    // Accumulate distance and fire a stamp when the threshold is crossed.
+    this._dragDistAccum += segDist;
+    let stamp: { x: number; y: number } | null = null;
+    if (this._dragDistAccum >= MouseToolManager.STAMP_INTERVAL_PX) {
+      this._dragDistAccum -= MouseToolManager.STAMP_INTERVAL_PX;
+      stamp = { x, y };
+    }
+
     // Delegate per-tool drag effect (throttled).
     if (shouldEmitParticles) {
       TOOLS[this._currentIndex].applyDrag(x, y, allElements, this._particles, this._audio);
     }
 
     // Universal AABB hit detection across all tools.
-    return this._checkDragHits(x, y, allElements);
+    return { hitElements: this._checkDragHits(x, y, allElements), stamp };
   }
 
   /**
@@ -269,6 +292,7 @@ export class MouseToolManager {
     this._hasDragStart = false;
     this._dragFrameCount = 0;
     this._trailSegmentCount = 0;
+    this._dragDistAccum = 0;
   }
 
   /**
