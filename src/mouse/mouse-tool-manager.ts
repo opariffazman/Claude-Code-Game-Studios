@@ -35,11 +35,11 @@ const MOUSE_TOOL_CONFIG = {
   MAX_TRAIL_SEGMENTS: 80,
   /** Per-tool trail line styles — single stroke per segment for performance. */
   TRAIL_STYLES: {
-    hammer: { color: 0xff5500, width: 8,  alpha: 0.6 },
-    laser:  { color: 0x44ff44, width: 4,  alpha: 0.8 },
-    bomb:   { color: 0xff8800, width: 6,  alpha: 0.5 },
-    freeze: { color: 0x88ccff, width: 10, alpha: 0.5 },
-    magnet: { color: 0xcc44ff, width: 5,  alpha: 0.6 },
+    hammer: { color: 0xff4400, width: 10, alpha: 0.7 },
+    laser:  { color: 0x00ff44, width: 3,  alpha: 0.9 },
+    bomb:   { color: 0xffcc00, width: 8,  alpha: 0.5 },
+    freeze: { color: 0x44ddff, width: 12, alpha: 0.4 },
+    magnet: { color: 0xcc44ff, width: 5,  alpha: 0.7 },
   } as Record<MouseToolType, { color: number; width: number; alpha: number }>,
 } as const;
 

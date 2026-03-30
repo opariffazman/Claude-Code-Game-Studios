@@ -49,7 +49,7 @@ export class DesktopManager {
 
   /** Active wallpaper damage marks — oldest removed when cap is hit. */
   private _damageMarks: import('pixi.js').Graphics[] = [];
-  private static readonly MAX_DAMAGE_MARKS = 20;
+  private static readonly MAX_DAMAGE_MARKS = 30;
 
   private screenW: number;
   private screenH: number;
@@ -244,7 +244,7 @@ export class DesktopManager {
 
     switch (damageType) {
       case 0: {
-        // Crack: spider-web fracture lines
+        // Crack: spider-web fracture lines — orange tint for hammer impact
         const numLines = 3 + Math.floor(Math.random() * 4);
         for (let i = 0; i < numLines; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -253,32 +253,38 @@ export class DesktopManager {
           const midY = Math.sin(angle) * len * 0.4 + (Math.random() - 0.5) * 12;
           mark.moveTo(0, 0).lineTo(midX, midY)
             .lineTo(Math.cos(angle) * len, Math.sin(angle) * len)
-            .stroke({ color: 0x000000, width: 1.5 + Math.random() * 1.5, alpha: 0.35 + Math.random() * 0.15 });
+            .stroke({ color: 0x884400, width: 1.5 + Math.random() * 1.5, alpha: 0.35 + Math.random() * 0.15 });
         }
         break;
       }
       case 1: {
-        // Burn: dark circle with scorched edges and orange embers
+        // Burn: bright green scorched marks with green embers — laser burns green
         const radius = 15 + Math.random() * 25;
-        mark.circle(0, 0, radius).fill({ color: 0x1a0a00, alpha: 0.5 });
-        mark.circle(0, 0, radius * 0.6).fill({ color: 0x000000, alpha: 0.4 });
-        mark.circle(0, 0, radius * 1.1).stroke({ color: 0x332200, width: 3, alpha: 0.3 });
+        mark.circle(0, 0, radius).fill({ color: 0x22aa00, alpha: 0.5 });
+        mark.circle(0, 0, radius * 0.6).fill({ color: 0x004400, alpha: 0.4 });
+        mark.circle(0, 0, radius * 1.1).stroke({ color: 0x006600, width: 3, alpha: 0.3 });
         for (let i = 0; i < 5; i++) {
           const a = Math.random() * Math.PI * 2;
           const r = radius * (0.7 + Math.random() * 0.4);
           mark.circle(Math.cos(a) * r, Math.sin(a) * r, 2 + Math.random() * 2)
-            .fill({ color: 0xff6600, alpha: 0.4 + Math.random() * 0.3 });
+            .fill({ color: 0x44ff00, alpha: 0.4 + Math.random() * 0.3 });
         }
         break;
       }
       case 2: {
-        // Dent: concentric rings suggesting depth with a highlight
+        // Dent: deep red crater with orange splash around edges — bomb impact
         const size = 12 + Math.random() * 20;
-        mark.circle(0, 0, size).fill({ color: 0x000000, alpha: 0.15 });
-        mark.circle(0, 0, size * 0.7).fill({ color: 0x000000, alpha: 0.12 });
-        mark.circle(0, 0, size * 0.4).fill({ color: 0x000000, alpha: 0.1 });
-        mark.circle(size * -0.2, size * -0.2, size * 0.3)
-          .fill({ color: 0xffffff, alpha: 0.08 });
+        mark.circle(0, 0, size).fill({ color: 0x880000, alpha: 0.3 });
+        mark.circle(0, 0, size * 0.7).fill({ color: 0x660000, alpha: 0.25 });
+        mark.circle(0, 0, size * 0.4).fill({ color: 0x440000, alpha: 0.2 });
+        mark.circle(0, 0, size * 1.3).stroke({ color: 0xff6600, width: 2, alpha: 0.35 });
+        for (let i = 0; i < 4; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const dist = size * (1.0 + Math.random() * 0.6);
+          const sr = 2 + Math.random() * 3;
+          mark.circle(Math.cos(a) * dist, Math.sin(a) * dist, sr)
+            .fill({ color: 0xff8800, alpha: 0.4 + Math.random() * 0.2 });
+        }
         break;
       }
       case 3: {
@@ -297,14 +303,13 @@ export class DesktopManager {
         break;
       }
       case 4: {
-        // Pixel: digital-glitch grid of sparse squares
+        // Pixel: ice blue digital-glitch grid — freeze corruption
         const cellSize = 5 + Math.random() * 3;
         const spread = 3 + Math.floor(Math.random() * 3);
         for (let gx = -spread; gx <= spread; gx++) {
           for (let gy = -spread; gy <= spread; gy++) {
             if (Math.random() > 0.5) continue;
-            const brightness = Math.random();
-            const color = brightness > 0.5 ? 0xffffff : 0x000000;
+            const color = Math.random() > 0.5 ? 0x88ccff : 0xaaeeff;
             mark.rect(gx * cellSize, gy * cellSize, cellSize - 1, cellSize - 1)
               .fill({ color, alpha: 0.15 + Math.random() * 0.2 });
           }
@@ -312,7 +317,7 @@ export class DesktopManager {
         break;
       }
       case 5: {
-        // Scratch: diagonal claw marks
+        // Scratch: bright purple diagonal claw marks — magnet force
         const numScratches = 3 + Math.floor(Math.random() * 2);
         const angle = -0.3 + Math.random() * 0.6;
         for (let i = 0; i < numScratches; i++) {
@@ -323,7 +328,7 @@ export class DesktopManager {
           const endX = offsetX + Math.cos(angle) * len / 2;
           const endY = Math.sin(angle) * len / 2;
           mark.moveTo(startX, startY).lineTo(endX, endY)
-            .stroke({ color: 0x000000, width: 1.5 + Math.random(), alpha: 0.3 + Math.random() * 0.15 });
+            .stroke({ color: 0x9933ff, width: 1.5 + Math.random(), alpha: 0.5 });
         }
         break;
       }
