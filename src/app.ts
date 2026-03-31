@@ -454,6 +454,10 @@ export class DeskSmasherApp {
       // Implements: desk-smasher-auk — tool-aware particle sets.
       const destroySet = DeskSmasherApp.TOOL_DESTROY_PARTICLES[toolName] || 'spark';
       this.spriteParticles.emit(cx, cy, 8, destroySet as import('./vfx/sprite-particles').ParticleSet);
+
+      // Update centralized health dashboard on destruction.
+      // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
+      this.healthDashboard.onDamage(this.desktop.elements);
     } else {
       // Tool-consistent damage: always use the same damage effect (shake)
       // rather than random registry picks that look like cycling
@@ -508,6 +512,9 @@ export class DeskSmasherApp {
       effect(element, container, this.particles, this.audioManager);
       // Sprite-based destruction burst: sparks for satisfying visual pop
       this.spriteParticles.emit(cx, cy, 8, 'spark');
+      // Update centralized health dashboard on destruction.
+      // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
+      this.healthDashboard.onDamage(this.desktop.elements);
     } else {
       const dmgEffect = this.damageRegistry.getRandom();
       dmgEffect(element, container, this.particles, this.audioManager);
