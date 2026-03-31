@@ -27,8 +27,6 @@ const PIP_EMPTY = `${SVG_DIR}/progress_white_small.svg`;
 // Layout tuning knobs
 // ---------------------------------------------------------------------------
 
-/** Number of pip circles per category group. */
-const PIPS_PER_CATEGORY = 5;
 /** Display size of each pip in pixels. */
 const PIP_SIZE = 20;
 /** Gap between adjacent pips within a group. */
@@ -160,6 +158,15 @@ export class HealthDashboard {
     );
     if (activeCategories.length === 0) return;
 
+    // Dynamic pip count — fills ~70% of the taskbar width.
+    // Implements: desk-smasher-381 — pip count adapts to screen width.
+    const tbW = this._taskbarW;
+    const availableW = tbW * 0.70;
+    const categoryCount = activeCategories.length;
+    const totalGroupGaps = (categoryCount - 1) * GROUP_SPACING;
+    const perGroupW = (availableW - totalGroupGaps) / categoryCount;
+    const pipsPerGroup = Math.max(3, Math.min(15, Math.floor(perGroupW / (PIP_SIZE + PIP_SPACING))));
+
     // Retrieve preloaded empty texture — bail if assets are not yet loaded.
     let emptyTex: Texture;
     try {
@@ -185,12 +192,12 @@ export class HealthDashboard {
         fillTex = Texture.from(PIP_FILLS[cat]);
       } catch {
         // Skip this group — advance cursor by a full group width so layout stays stable.
-        xCursor += PIPS_PER_CATEGORY * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
+        xCursor += pipsPerGroup * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
         continue;
       }
 
       const pips: Sprite[] = [];
-      for (let i = 0; i < PIPS_PER_CATEGORY; i++) {
+      for (let i = 0; i < pipsPerGroup; i++) {
         const pip = new Sprite(fillTex);
         pip.width = PIP_SIZE;
         pip.height = PIP_SIZE;
@@ -207,7 +214,7 @@ export class HealthDashboard {
       this.groups.push({ category: cat, pips, fillTexture: fillTex, maxHealthSum });
 
       // Advance past this group's pips plus the gap to the next group.
-      xCursor += PIPS_PER_CATEGORY * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
+      xCursor += pipsPerGroup * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
     }
 
     this._ready = true;
@@ -233,11 +240,12 @@ export class HealthDashboard {
         }
       }
 
+      const pipCount = group.pips.length;
       const ratio = group.maxHealthSum > 0 ? currentHealthSum / group.maxHealthSum : 0;
-      const filledCount = Math.ceil(ratio * PIPS_PER_CATEGORY);
+      const filledCount = Math.ceil(ratio * pipCount);
 
-      for (let i = 0; i < PIPS_PER_CATEGORY; i++) {
-        // Pips deplete right-to-left: rightmost (index 4) goes empty first.
+      for (let i = 0; i < pipCount; i++) {
+        // Pips deplete right-to-left: rightmost pip goes empty first.
         const isFilled = i < filledCount;
         group.pips[i].texture = isFilled ? group.fillTexture : emptyTex;
       }

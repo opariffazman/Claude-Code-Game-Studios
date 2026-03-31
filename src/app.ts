@@ -450,6 +450,7 @@ export class DeskSmasherApp {
   };
 
   private hitElementToolAware(element: import('./types').DesktopElement): void {
+    if (element.type === 'taskbar') return; // Taskbar is immune to damage
     const container = this.desktop.getContainerForElement(element);
     if (!container) return;
 
@@ -517,6 +518,7 @@ export class DeskSmasherApp {
    * @param element - The element to damage.
    */
   private hitElement(element: import('./types').DesktopElement): void {
+    if (element.type === 'taskbar') return; // Taskbar is immune to damage
     const container = this.desktop.getContainerForElement(element);
     if (!container) return;
 

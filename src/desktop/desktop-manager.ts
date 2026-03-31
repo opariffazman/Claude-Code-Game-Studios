@@ -175,14 +175,16 @@ export class DesktopManager {
    * Zero-allocation: counts then walks the list rather than building a filtered array.
    */
   getRandomAlive(): DesktopElement | null {
+    // Taskbar is excluded — it is immune to keyboard hits.
+    // Implements: desk-smasher-381 — taskbar immune to damage.
     let aliveCount = 0;
     for (const el of this._elements) {
-      if (!el.destroyed) aliveCount++;
+      if (!el.destroyed && el.type !== 'taskbar') aliveCount++;
     }
     if (aliveCount === 0) return null;
     let target = Math.floor(Math.random() * aliveCount);
     for (const el of this._elements) {
-      if (!el.destroyed) {
+      if (!el.destroyed && el.type !== 'taskbar') {
         if (target === 0) return el;
         target--;
       }
