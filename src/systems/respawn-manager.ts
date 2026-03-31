@@ -94,8 +94,8 @@ export class RespawnManager {
       return;
     }
 
-    // Schedule individual respawn (3–5 seconds).
-    const delay = 3000 + Math.random() * 2000;
+    // Schedule individual respawn (8–12 seconds).
+    const delay = 8000 + Math.random() * 4000;
     const timer = setTimeout(() => {
       this._queue.delete(element.id);
       this._onRespawn(element);

@@ -334,9 +334,11 @@ export class DesktopManager {
     contentContainer.label = `func-window-content-${title}`;
     windowContainer.addChild(contentContainer);
 
+    // desk-smasher-53s: apply optional elementType override so the health dashboard
+    // can track Milestones as a 'notification' element (blue pips).
     const el: DesktopElement = {
       id: `el-${nextId++}`,
-      type: 'window',
+      type: elementType ?? 'window',
       label: title,
       health: DESKTOP_CONFIG.HEALTH.window,
       maxHealth: DESKTOP_CONFIG.HEALTH.window,
@@ -679,7 +681,8 @@ export class DesktopManager {
     // Rebuild content using the full theme icon count (same as original build).
     // Implements: desk-smasher-dbt — all icons always shown.
     this.buildIcons(this._sessionIconCount || (this._themeLoader?.currentTheme.iconFrames.length ?? 30));
-    this.buildWindows(this._sessionWindowCount || randInt(2, 3));
+    // desk-smasher-7r5: buildWindows() removed — only functional windows from app.ts exist.
+    // this.buildWindows(this._sessionWindowCount || randInt(2, 3));
     // desk-smasher-30t: notification panels removed — AchievementToast handles milestones.
     // this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
 
@@ -760,8 +763,8 @@ export class DesktopManager {
     this.buildTaskbar();
     // Implements: desk-smasher-dbt — all icons from theme pool in 3-col grid.
     this.buildIcons(this._sessionIconCount);
-    // Implements: desktop-layout.md §3 — 2-3 windows, cascade placement.
-    this.buildWindows(this._sessionWindowCount);
+    // desk-smasher-7r5: buildWindows() removed — only functional windows from app.ts exist.
+    // this.buildWindows(this._sessionWindowCount);
     // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
     // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
@@ -1451,6 +1454,13 @@ export class DesktopManager {
     newContainer.alpha = 0; // Start invisible for fade-in.
     this.container.addChild(newContainer);
     this.containers[idx] = newContainer;
+
+    // desk-smasher-9ov: invoke registered respawn callback so functional windows
+    // (CombatLog, ToolCard, ToolBag, Milestones) re-populate their content after respawn.
+    const respawnCb = this._respawnCallbacks.get(element.id);
+    if (respawnCb) {
+      respawnCb(newContainer);
+    }
 
     // Restore cached health counters so destructionProgress stays accurate.
     this._currentHealth += element.maxHealth;

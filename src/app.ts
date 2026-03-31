@@ -729,31 +729,36 @@ export class DeskSmasherApp {
     const zoneW = zone.w * sw;
     const zoneH = zone.h * sh;
 
-    // Three primary windows tiled in a row across the top two-thirds of the zone:
-    // Combat Log (left) | Tool Card (center) | Tool Bag (center-bottom)
-    // Milestone panel sits in the top-right corner above the NOTIF_ZONE.
+    // Four windows tiled in a row across the WINDOW_ZONE:
+    // Combat Log (left) | Tool Card (center) | Tool Bag (center) | Milestones (right)
+    // desk-smasher-c3g: all windows are uniform squares.
+    // desk-smasher-53s: Milestones placed in the 3rd column of WINDOW_ZONE.
     const gap = 15;
-    const thirdW = (zoneW - gap * 2) / 3;
+    const thirdW = (zoneW - gap * 3) / 4;
 
-    const logW = Math.round(thirdW);
-    const logH = Math.round(zoneH * 0.6);
+    // desk-smasher-c3g: uniform square size across all four panels.
+    const squareSize = Math.round(Math.min(thirdW, zoneH * 0.6));
+
+    const logW = squareSize;
+    const logH = squareSize;
     const logX = Math.round(zoneX);
     const logY = Math.round(zoneY);
 
-    const cardW = Math.round(thirdW);
-    const cardH = Math.round(zoneH * 0.6);
-    const cardX = Math.round(zoneX + thirdW + gap);
+    const cardW = squareSize;
+    const cardH = squareSize;
+    const cardX = Math.round(zoneX + squareSize + gap);
     const cardY = Math.round(zoneY);
 
-    const bagW = Math.round(thirdW);
-    const bagH = Math.round(zoneH * 0.3);
-    const bagX = Math.round(zoneX + thirdW + gap);
-    const bagY = Math.round(zoneY + cardH + gap);
+    const bagW = squareSize;
+    const bagH = squareSize;
+    const bagX = Math.round(zoneX + (squareSize + gap) * 2);
+    const bagY = Math.round(zoneY);
 
-    // Milestone panel: top-right area (right of WINDOW_ZONE, above icon zone 2).
-    const mlW = Math.round(sw * 0.16);
-    const mlH = Math.round(sh * 0.35);
-    const mlX = Math.round(sw * 0.78 - mlW - gap);
+    // Milestone panel: 4th column inside WINDOW_ZONE, same square size.
+    // desk-smasher-53s: was previously positioned outside the zone and may not have appeared.
+    const mlW = squareSize;
+    const mlH = squareSize;
+    const mlX = Math.round(zoneX + (squareSize + gap) * 3);
     const mlY = Math.round(zoneY);
 
     // -- Combat Log (left column)
