@@ -446,8 +446,15 @@ export class DesktopManager {
   }
 
   /**
-   * Updates the logical screen size and rebuilds the desktop to fit.
-   * Called when the browser window is resized.
+   * Updates the stored logical dimensions when the browser window is resized.
+   * Does NOT rebuild or randomise the desktop — existing elements stay in place.
+   * The next natural rebuild cycle (after all elements are destroyed) will pick
+   * up the new dimensions via screenW/screenH.
+   *
+   * Wallpaper coverage on expand is handled by the oversized rect (-500 offsets)
+   * drawn in buildWallpaper(); PixiJS resizeTo:window auto-scales the canvas.
+   *
+   * Implements: desk-smasher-d2i — resize must not randomise the desktop.
    *
    * @param w - New logical canvas width in px.
    * @param h - New logical canvas height in px.
@@ -455,7 +462,7 @@ export class DesktopManager {
   resize(w: number, h: number): void {
     this.screenW = w;
     this.screenH = h;
-    this.reset();
+    // Don't rebuild — existing elements stay as-is.
   }
 
   /**
