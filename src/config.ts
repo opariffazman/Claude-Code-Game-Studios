@@ -92,10 +92,10 @@ export const LAYOUT_CONFIG = {
   NOTIF_ZONE:  { x: 0.78, y: 0.02, w: 0.20, h: 0.50, padding: 5  },
 
   /**
-   * Icon columns: 2 for viewports < 1200px wide, 3 for >= 1200px.
-   * The buildIcons() method applies this threshold dynamically.
+   * Icon columns: always 3 — all theme icons shown in a fixed 3-column grid.
+   * Implements: desk-smasher-dbt — show all 30 animals, 3 cols × 10 rows.
    */
-  ICON_COLS_SMALL: 2,   // viewport width < 1200
+  ICON_COLS_SMALL: 3,   // viewport width < 1200
   ICON_COLS_LARGE: 3,   // viewport width >= 1200
 
   /** Grid cell dimensions as fractions of viewport. */
@@ -104,10 +104,6 @@ export const LAYOUT_CONFIG = {
 
   /** Max random offset applied to each icon from its grid cell center (px). */
   ICON_JITTER: 5,
-
-  /** Icon count range per desktop generation (subset of theme pool). */
-  ICON_COUNT_MIN: 8,
-  ICON_COUNT_MAX: 12,
 
   /**
    * Fixed target icon size in logical pixels (before viewport scale).

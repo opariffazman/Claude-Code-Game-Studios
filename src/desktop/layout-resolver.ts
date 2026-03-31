@@ -51,20 +51,19 @@ export function resolveZone(zone: LayoutZone, screenW: number, screenH: number):
 /**
  * Generates `count` icon placements arranged in a grid within `zone`.
  *
- * Algorithm (implements layout-generation-algorithm.md §2):
- *   1. Compute cell size from icon dimensions with a minimum of 80×90.
- *   2. Determine grid capacity (cols × rows that fit in zone).
- *   3. Clamp count to grid capacity.
- *   4. Place each icon at its cell center, offset by icon half-size, plus jitter.
+ * Algorithm (implements layout-generation-algorithm.md §2, desk-smasher-dbt):
+ *   1. Derive rows from count and cols.
+ *   2. Compute cell size from zone dimensions divided by cols/rows so all icons
+ *      always fit — no icon is ever dropped due to insufficient zone space.
+ *   3. Place each icon at its cell center, offset by icon half-size, plus jitter.
  *
- * Overlap guarantee: cell size >= iconW/H + 2*jitter by the 80/90 floor, so
- * no two icons can overlap.
+ * Implements: desk-smasher-dbt — 3 cols × 10 rows, zone-fitted cell sizes.
  *
  * @param zone    - Resolved icon zone in pixels.
- * @param count   - Desired icon count (clamped to grid capacity).
+ * @param count   - Number of icons to place (all icons shown — no clamping to subset).
  * @param iconW   - Icon visual width in px.
  * @param iconH   - Icon visual height in px.
- * @param cols    - Number of grid columns.
+ * @param cols    - Number of grid columns (fixed at 3 per LAYOUT_CONFIG).
  * @param jitter  - Max random offset from cell center in px (applied symmetrically).
  */
 export function generateIconGrid(
@@ -75,17 +74,16 @@ export function generateIconGrid(
   cols: number,
   jitter: number,
 ): Placement[] {
-  const cellW = Math.max(iconW + jitter * 2 + 10, 80);
-  const cellH = Math.max(iconH + jitter * 2 + 10, 90);
+  const effectiveCols = Math.max(1, cols);
+  const rows = Math.ceil(count / effectiveCols);
 
-  const maxCols = Math.max(1, Math.floor(zone.width  / cellW));
-  const maxRows = Math.max(1, Math.floor(zone.height / cellH));
-  const effectiveCols = Math.min(cols, maxCols);
-  const capacity = effectiveCols * maxRows;
-  const effectiveCount = Math.min(count, capacity);
+  // Derive cell size from zone dimensions so all `count` icons always fit.
+  // Implements: desk-smasher-dbt — cellW = zoneW / cols, cellH = zoneH / rows.
+  const cellW = zone.width  / effectiveCols;
+  const cellH = zone.height / Math.max(1, rows);
 
   const placements: Placement[] = [];
-  for (let i = 0; i < effectiveCount; i++) {
+  for (let i = 0; i < count; i++) {
     const col = i % effectiveCols;
     const row = Math.floor(i / effectiveCols);
 

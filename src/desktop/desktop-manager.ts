@@ -519,8 +519,9 @@ export class DesktopManager {
     this.buildWallpaper(this._currentPalette);
     this.buildTaskbar();
 
-    // Rebuild content using the session counts (same as the original build).
-    this.buildIcons(this._sessionIconCount || randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX));
+    // Rebuild content using the full theme icon count (same as original build).
+    // Implements: desk-smasher-dbt — all icons always shown.
+    this.buildIcons(this._sessionIconCount || (this._themeLoader?.currentTheme.iconFrames.length ?? 30));
     this.buildWindows(this._sessionWindowCount || randInt(2, 3));
     this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
 
@@ -589,17 +590,17 @@ export class DesktopManager {
     // Reset icon shuffle so each new desktop gets unique icons in a different order.
     this._themeLoader?.resetShuffle();
 
-    // Randomise content counts and save them so _rebuildLayout() can reproduce the
-    // same content at new viewport dimensions without re-randomising.
+    // Fix icon count to the full theme pool so all animals are always shown.
+    // Implements: desk-smasher-dbt — always show all 30 icons (no random subset).
     this._currentPalette = palette;
-    this._sessionIconCount = randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX);
+    this._sessionIconCount = this._themeLoader?.currentTheme.iconFrames.length ?? 30;
     this._sessionWindowCount = randInt(2, 3);
     this._sessionNotifCount = randInt(2, 3);
 
     this._wallpaperColor = palette.bg;
     this.buildWallpaper(palette);
     this.buildTaskbar();
-    // Implements: desktop-layout.md §2 — 8-12 icons from theme pool (not all frames).
+    // Implements: desk-smasher-dbt — all icons from theme pool in 3-col grid.
     this.buildIcons(this._sessionIconCount);
     // Implements: desktop-layout.md §3 — 2-3 windows, cascade placement.
     this.buildWindows(this._sessionWindowCount);
@@ -720,25 +721,24 @@ export class DesktopManager {
     /**
      * Implements: design/gdd/desktop-layout.md §2 — Icon Grid Rules
      * Implements: docs/architecture/layout-generation-algorithm.md §2
+     * Implements: desk-smasher-dbt — all 30 animals shown in a 3-col × 10-row grid.
      *
-     * Icons are placed in a zone-based grid on the left side of the screen
-     * (ICON_ZONE). 8-12 icons are selected from the theme pool per generation
-     * using a Fisher-Yates shuffle. No initial rotation — rotation is earned
-     * through smashing (damage wobble).
+     * All theme icons are shown every generation. Order is shuffled via
+     * ThemeLoader.resetShuffle() so each desktop feels fresh. No initial
+     * rotation — rotation is earned through smashing (damage wobble).
      */
     const useSprites = this._themeLoader?.isReady ?? false;
 
-    // Select 8-12 icons from the theme pool (not all frames).
-    // Implements: desktop-layout.md §8 — "Which icons appear" is random.
-    const iconCount = Math.min(
-      count,
-      useSprites ? this._themeLoader!.currentTheme.iconFrames.length : count,
-    );
+    // Always show the full theme icon pool — no random subset.
+    // Implements: desk-smasher-dbt — iconCount = full theme pool size.
+    const iconCount = useSprites
+      ? this._themeLoader!.currentTheme.iconFrames.length
+      : count;
 
-    // Shuffle and slice icon labels/frames so each desktop gets a fresh subset.
+    // Shuffle label fallbacks to match icon count.
     const labels = shuffle(ICON_LABELS).slice(0, iconCount);
     if (useSprites) {
-      // Reset shuffle so getNextIconTexture() returns a freshly shuffled sequence.
+      // resetShuffle() randomises the ORDER animals appear in; all are still shown.
       this._themeLoader!.resetShuffle();
     }
 
@@ -751,10 +751,9 @@ export class DesktopManager {
     const iconW = iconSize;
     const iconH = iconSize;
 
-    // Resolve icon zone to pixel coordinates.
-    const cols = this.screenW < 1200
-      ? LAYOUT_CONFIG.ICON_COLS_SMALL
-      : LAYOUT_CONFIG.ICON_COLS_LARGE;
+    // Fixed 3-column grid regardless of viewport width.
+    // Implements: desk-smasher-dbt — 3 cols × 10 rows for 30 animals.
+    const cols = LAYOUT_CONFIG.ICON_COLS_LARGE;
 
     const iconZone = resolveZone(LAYOUT_CONFIG.ICON_ZONE, this.screenW, this.screenH);
     const placements = generateIconGrid(
