@@ -53,6 +53,16 @@ export class DesktopManager {
   /** Parallel array: PixiJS Container for each DesktopElement at the same index. */
   private containers: Container[] = [];
 
+  /**
+   * Per-element respawn callbacks, keyed by element id.
+   * Registered by createFunctionalWindow() and cleared on full reset().
+   * Called from respawnElement() after the new container is placed so
+   * content classes can re-populate their window on respawn.
+   *
+   * @param container - The freshly-built replacement Container for the element.
+   */
+  private _respawnCallbacks: Map<string, (container: Container) => void> = new Map();
+
   /** Running health totals — updated by buildDesktop() and recordDamage(). */
   private _totalHealth = 0;
   private _currentHealth = 0;
@@ -262,6 +272,85 @@ export class DesktopManager {
    */
   setTilePanelBuilder(builder: TilePanelBuilder): void {
     this._tilePanelBuilder = builder;
+  }
+
+  /**
+   * Creates a functional window (titled panel) at a fixed position and registers
+   * it as a regular DesktopElement so it participates in hit detection, physics,
+   * and respawn just like any other window.
+   *
+   * Returns the window's inner content Container — callers (e.g. app.ts) add
+   * their own UI children to this container.  On element respawn the onRespawn
+   * callback is invoked with the freshly-built replacement content Container so
+   * the caller can re-populate it.
+   *
+   * Returns null only if called before buildDesktop() has run (container not
+   * yet initialised).
+   *
+   * @param title      - Window title shown in the panel header.
+   * @param x          - Absolute X position in canvas pixels.
+   * @param y          - Absolute Y position in canvas pixels.
+   * @param w          - Width in canvas pixels.
+   * @param h          - Height in canvas pixels.
+   * @param onRespawn  - Optional callback invoked after respawn with the new
+   *                     inner content Container so content can be rebuilt.
+   */
+  createFunctionalWindow(
+    title: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    onRespawn?: (container: Container) => void,
+  ): { element: DesktopElement; container: Container } | null {
+    const style = 'brown';
+    const themeName = this._themeLoader?.currentTheme?.name;
+    let windowContainer: Container;
+
+    if (this._tilePanelBuilder?.isReady) {
+      windowContainer = this._tilePanelBuilder.buildWindow(style, w, h, themeName);
+    } else {
+      // Graphics fallback: simple rectangle panel
+      const c = new Container();
+      c.label = `func-window-${title}`;
+      const bg = new Graphics().rect(0, 0, w, h).fill({ color: 0x2a2a3a });
+      const titleBar = new Graphics().rect(0, 0, w, 28).fill({ color: 0x44445a });
+      const titleStyle = new TextStyle({ fontSize: 12, fill: 0xffffff, fontFamily: 'sans-serif' });
+      const titleText = new Text({ text: title, style: titleStyle });
+      titleText.position.set(8, 6);
+      c.addChild(bg, titleBar, titleText);
+      windowContainer = c;
+    }
+
+    windowContainer.position.set(x, y);
+    this.container.addChild(windowContainer);
+
+    // Inner content container — callers attach their UI children here.
+    const contentContainer = new Container();
+    contentContainer.label = `func-window-content-${title}`;
+    windowContainer.addChild(contentContainer);
+
+    const el: DesktopElement = {
+      id: `el-${nextId++}`,
+      type: 'window',
+      label: title,
+      health: DESKTOP_CONFIG.HEALTH.window,
+      maxHealth: DESKTOP_CONFIG.HEALTH.window,
+      destroyed: false,
+      x, y, width: w, height: h,
+      vx: 0, vy: 0, rotSpeed: 0,
+    };
+
+    this._elements.push(el);
+    this.containers.push(windowContainer);
+    this._totalHealth += el.maxHealth;
+    this._currentHealth += el.maxHealth;
+
+    if (onRespawn) {
+      this._respawnCallbacks.set(el.id, onRespawn);
+    }
+
+    return { element: el, container: contentContainer };
   }
 
   // ---------------------------------------------------------------------------
@@ -523,6 +612,7 @@ export class DesktopManager {
     this._elements = [];
     this.containers = [];
     this._damageMarks = [];
+    this._respawnCallbacks.clear();
     this.factory.resetIconCount();
     this.buildDesktop();
   }
@@ -572,6 +662,7 @@ export class DesktopManager {
     this._elements = [];
     this.containers = [];
     this._damageMarks = [];
+    this._respawnCallbacks.clear();
     this.factory.resetIconCount();
 
     // Reset icon shuffle so sprites are re-distributed the same way as at build time.
