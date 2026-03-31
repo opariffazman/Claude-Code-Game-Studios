@@ -5,32 +5,35 @@
 
 ## Engine & Language
 
-- **Engine**: [TO BE CONFIGURED — run /setup-engine]
-- **Language**: [TO BE CONFIGURED]
-- **Rendering**: [TO BE CONFIGURED]
-- **Physics**: [TO BE CONFIGURED]
+- **Engine**: Web (PixiJS 8.17.0)
+- **Language**: TypeScript (strict mode)
+- **Rendering**: WebGPU (primary), WebGL2 (fallback) — via PixiJS 8 renderer
+- **Physics**: None (simple custom collision / math only)
 
 ## Naming Conventions
 
-- **Classes**: [TO BE CONFIGURED]
-- **Variables**: [TO BE CONFIGURED]
-- **Signals/Events**: [TO BE CONFIGURED]
-- **Files**: [TO BE CONFIGURED]
-- **Scenes/Prefabs**: [TO BE CONFIGURED]
-- **Constants**: [TO BE CONFIGURED]
+- **Classes**: PascalCase (e.g., `DesktopRenderer`, `DestructionEffect`)
+- **Properties**: camelCase (e.g., `moveSpeed`, `particleCount`)
+- **Private fields**: `#camelCase` or `_camelCase` (e.g., `#health`, `_score`)
+- **Methods**: camelCase (e.g., `spawnEffect()`, `resetDesktop()`)
+- **Files**: kebab-case (e.g., `desktop-renderer.ts`, `destruction-effect.ts`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_PARTICLES`, `CHAOS_THRESHOLD`)
+- **Interfaces**: PascalCase, no `I` prefix (e.g., `DestructionConfig`, not `IDestructionConfig`)
+- **Type aliases**: PascalCase (e.g., `EffectType`, `ThemeId`)
+- **Events**: camelCase past tense (e.g., `desktopDestroyed`, `themeChanged`)
 
 ## Performance Budgets
 
-- **Target Framerate**: [TO BE CONFIGURED]
-- **Frame Budget**: [TO BE CONFIGURED]
-- **Draw Calls**: [TO BE CONFIGURED]
-- **Memory Ceiling**: [TO BE CONFIGURED]
+- **Target Framerate**: 60fps
+- **Frame Budget**: 16.6ms
+- **Draw Calls**: < 100 per frame (PixiJS batches well, but keep particle systems lean)
+- **Memory Ceiling**: 128MB (browser tab budget — keep asset loading lightweight)
 
 ## Testing
 
-- **Framework**: [TO BE CONFIGURED]
-- **Minimum Coverage**: [TO BE CONFIGURED]
-- **Required Tests**: Balance formulas, gameplay systems, networking (if applicable)
+- **Framework**: Vitest
+- **Minimum Coverage**: Core systems (input capture, effect spawning, parent lock)
+- **Required Tests**: Input capture correctness, parent unlock logic, photosensitivity limits
 
 ## Forbidden Patterns
 

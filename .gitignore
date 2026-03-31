@@ -11,7 +11,10 @@ Desktop.ini
 
 # === Claude Code Local ===
 .claude/settings.local.json
+.claude/settings.json
 .claude/docs/UPGRADE-PLAN.md
+.claude/agent-memory/
+.claude/skills/playwright-cli/
 CLAUDE.local.md
 production/session-logs/
 production/session-state/*.md
@@ -96,6 +99,23 @@ __pycache__/
 node_modules/
 .npm/
 
+# === Test Artifacts ===
+screenshots/
+test-results/
+.playwright/
+.playwright-cli/
+.playwright-mcp/
+
+# === QA Screenshots (temporary) ===
+qa-*.png
+current-state.png
+kenney-*.png
+fake.webp
+[0-9].png
+[0-9][0-9].png
+*x*.png
+!public/**/*.png
+
 # === Archives ===
 *.zip
 *.tar.gz
@@ -137,3 +157,8 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
