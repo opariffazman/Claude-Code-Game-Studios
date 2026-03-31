@@ -59,6 +59,7 @@ import { ToolBag } from './ui/tool-bag';
 import { TOOL_STATS } from './mouse/tool-stats';
 import { MilestoneTracker } from './systems/milestone-tracker';
 import { AchievementToast } from './ui/achievement-toast';
+import { LAYOUT_CONFIG } from './config';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -91,14 +92,15 @@ export class DeskSmasherApp {
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
+  private milestoneLog: CombatLog | null = null;
   private milestoneTracker!: MilestoneTracker;
   private achievementToast!: AchievementToast;
-  /** Cached pixel dimensions for the Tool Card window — needed by setTool() re-renders. */
-  private _toolCardW = 0;
-  private _toolCardH = 0;
-  /** Cached pixel dimensions for the Tool Bag window — needed by setTool() re-renders. */
-  private _toolBagW = 0;
-  private _toolBagH = 0;
+  /** Cached content dimensions for the Tool Card window — needed by setTool() re-renders. */
+  private _toolCardContentW = 0;
+  private _toolCardContentH = 0;
+  /** Cached content dimensions for the Tool Bag window — needed by setTool() re-renders. */
+  private _toolBagContentW = 0;
+  private _toolBagContentH = 0;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -229,6 +231,7 @@ export class DeskSmasherApp {
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
       this.combatLog?.addEntry('★', label, 'milestone');
+      this.milestoneLog?.addEntry('★', label, 'milestone');
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
@@ -394,8 +397,8 @@ export class DeskSmasherApp {
       this.audioManager.playToolSwitch();
       // Sync Tool Card and Tool Bag windows to the newly selected tool.
       const tool = this.mouseTools.currentTool as import('./types').MouseToolType;
-      this.toolCard?.setTool(tool, this._toolCardW, this._toolCardH - 28);
-      this.toolBag?.setTool(tool, this._toolBagW, this._toolBagH - 28);
+      this.toolCard?.setTool(tool, this._toolCardContentW, this._toolCardContentH);
+      this.toolBag?.setTool(tool, this._toolBagContentW, this._toolBagContentH);
     });
 
     // 18. Debounced resize — rebuild desktop when window dimensions settle
@@ -718,63 +721,118 @@ export class DeskSmasherApp {
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
 
-    // -- Combat Log: top-right area (Bug 3: spread from 55% → 60%)
-    const clX = Math.round(sw * 0.60);
-    const clY = Math.round(sh * 0.05);
-    const clW = Math.round(sw * 0.18);
-    const clH = Math.round(sh * 0.35);
+    // Derive pixel bounds from the canonical WINDOW_ZONE so windows never
+    // escape the playfield or overlap icons in the flanking zones.
+    const zone = LAYOUT_CONFIG.WINDOW_ZONE;
+    const zoneX = zone.x * sw;
+    const zoneY = zone.y * sh;
+    const zoneW = zone.w * sw;
+    const zoneH = zone.h * sh;
+
+    // Three primary windows tiled in a row across the top two-thirds of the zone:
+    // Combat Log (left) | Tool Card (center) | Tool Bag (center-bottom)
+    // Milestone panel sits in the top-right corner above the NOTIF_ZONE.
+    const gap = 15;
+    const thirdW = (zoneW - gap * 2) / 3;
+
+    const logW = Math.round(thirdW);
+    const logH = Math.round(zoneH * 0.6);
+    const logX = Math.round(zoneX);
+    const logY = Math.round(zoneY);
+
+    const cardW = Math.round(thirdW);
+    const cardH = Math.round(zoneH * 0.6);
+    const cardX = Math.round(zoneX + thirdW + gap);
+    const cardY = Math.round(zoneY);
+
+    const bagW = Math.round(thirdW);
+    const bagH = Math.round(zoneH * 0.3);
+    const bagX = Math.round(zoneX + thirdW + gap);
+    const bagY = Math.round(zoneY + cardH + gap);
+
+    // Milestone panel: top-right area (right of WINDOW_ZONE, above icon zone 2).
+    const mlW = Math.round(sw * 0.16);
+    const mlH = Math.round(sh * 0.35);
+    const mlX = Math.round(sw * 0.78 - mlW - gap);
+    const mlY = Math.round(zoneY);
+
+    // -- Combat Log (left column)
     this.combatLog = new CombatLog();
     const clResult = this.desktop.createFunctionalWindow(
-      'Combat Log', clX, clY, clW, clH,
+      'Combat Log', logX, logY, logW, logH,
       (newContainer) => {
-        // Bug 1: inset content inside the ~16px panel border
-        this.combatLog!.build(newContainer, 20, 40, clW - 40, clH - 55);
+        this.combatLog!.build(newContainer, 20, 40, logW - 40, logH - 55);
       },
     );
     if (clResult) {
-      this.combatLog.build(clResult.container, 20, 40, clW - 40, clH - 55);
+      this.combatLog.build(clResult.container, 20, 40, logW - 40, logH - 55);
     }
 
-    // -- Tool Card: center-left, below icons (Bug 3: spread from 40% → 22%)
-    const tcX = Math.round(sw * 0.22);
-    const tcY = Math.round(sh * 0.08);
-    const tcW = Math.round(sw * 0.14);
-    const tcH = Math.round(sh * 0.25);
-    this._toolCardW = tcW;
-    this._toolCardH = tcH;
+    // -- Tool Card (center column, upper)
+    const tcContentW = cardW - 40;
+    const tcContentH = cardH - 55;
+    this._toolCardContentW = tcContentW;
+    this._toolCardContentH = tcContentH;
     this.toolCard = new ToolCard();
     const tcResult = this.desktop.createFunctionalWindow(
-      'Tool Card', tcX, tcY, tcW, tcH,
+      'Tool Card', cardX, cardY, cardW, cardH,
       (newContainer) => {
-        // Bug 1: inset content inside the ~16px panel border
-        this.toolCard!.build(newContainer, 20, 40, tcW - 40, tcH - 55);
-        this.toolCard!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW - 40, tcH - 55);
+        this.toolCard!.build(newContainer, 20, 40, tcContentW, tcContentH);
+        this.toolCard!.setTool(
+          this.mouseTools.currentTool as import('./types').MouseToolType,
+          tcContentW,
+          tcContentH,
+        );
       },
     );
     if (tcResult) {
-      this.toolCard.build(tcResult.container, 20, 40, tcW - 40, tcH - 55);
-      this.toolCard.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW - 40, tcH - 55);
+      this.toolCard.build(tcResult.container, 20, 40, tcContentW, tcContentH);
+      this.toolCard.setTool(
+        this.mouseTools.currentTool as import('./types').MouseToolType,
+        tcContentW,
+        tcContentH,
+      );
     }
 
-    // -- Tool Bag: bottom-center, above taskbar (Bug 3: spread from 35%/42% → 30%/55%)
-    const tbX = Math.round(sw * 0.30);
-    const tbY = Math.round(sh * 0.55);
-    const tbW = Math.round(sw * 0.22);
-    const tbH = Math.round(sh * 0.12);
-    this._toolBagW = tbW;
-    this._toolBagH = tbH;
+    // -- Tool Bag (center column, lower)
+    const tbContentW = bagW - 40;
+    const tbContentH = bagH - 55;
+    this._toolBagContentW = tbContentW;
+    this._toolBagContentH = tbContentH;
     this.toolBag = new ToolBag();
     const tbResult = this.desktop.createFunctionalWindow(
-      'Tool Bag', tbX, tbY, tbW, tbH,
+      'Tool Bag', bagX, bagY, bagW, bagH,
       (newContainer) => {
-        // Bug 1: inset content inside the ~16px panel border
-        this.toolBag!.build(newContainer, 20, 40, tbW - 40, tbH - 55);
-        this.toolBag!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW - 40, tbH - 55);
+        this.toolBag!.build(newContainer, 20, 40, tbContentW, tbContentH);
+        this.toolBag!.setTool(
+          this.mouseTools.currentTool as import('./types').MouseToolType,
+          tbContentW,
+          tbContentH,
+        );
       },
     );
     if (tbResult) {
-      this.toolBag.build(tbResult.container, 20, 40, tbW - 40, tbH - 55);
-      this.toolBag.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW - 40, tbH - 55);
+      this.toolBag.build(tbResult.container, 20, 40, tbContentW, tbContentH);
+      this.toolBag.setTool(
+        this.mouseTools.currentTool as import('./types').MouseToolType,
+        tbContentW,
+        tbContentH,
+      );
+    }
+
+    // -- Milestone Log (top-right, notification type so dashboard tracks it)
+    const mlContentW = mlW - 40;
+    const mlContentH = mlH - 55;
+    this.milestoneLog = new CombatLog();
+    const mlResult = this.desktop.createFunctionalWindow(
+      'Milestones', mlX, mlY, mlW, mlH,
+      (newContainer) => {
+        this.milestoneLog!.build(newContainer, 20, 40, mlContentW, mlContentH);
+      },
+      'notification',
+    );
+    if (mlResult) {
+      this.milestoneLog.build(mlResult.container, 20, 40, mlContentW, mlContentH);
     }
   }
 

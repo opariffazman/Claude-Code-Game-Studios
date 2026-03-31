@@ -11,7 +11,8 @@
  * toast.show('First Strike!');
  * ```
  */
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import { ADV_BANNER_MODERN } from './tile-panel';
 
 const TOAST_DURATION_MS = 3000;
 const TOAST_H = 40;
@@ -45,13 +46,22 @@ export class AchievementToast {
 
     const toast = new Container();
 
-    // Gold background with orange border
-    const bg = new Graphics()
-      .roundRect(0, 0, w, TOAST_H, 8)
-      .fill({ color: 0xffcc00, alpha: 0.9 })
-      .roundRect(0, 0, w, TOAST_H, 8)
-      .stroke({ color: 0xff8800, width: 2 });
-    toast.addChild(bg);
+    // Adventure banner background — uses the preloaded banner_modern SVG sprite.
+    // Falls back to a gold Graphics roundRect if the texture is not yet loaded.
+    const bannerTex = Assets.get<Texture>(ADV_BANNER_MODERN);
+    if (bannerTex) {
+      const bg = new Sprite(bannerTex);
+      bg.width = w;
+      bg.height = TOAST_H;
+      toast.addChild(bg);
+    } else {
+      const bg = new Graphics()
+        .roundRect(0, 0, w, TOAST_H, 8)
+        .fill({ color: 0xffcc00, alpha: 0.9 })
+        .roundRect(0, 0, w, TOAST_H, 8)
+        .stroke({ color: 0xff8800, width: 2 });
+      toast.addChild(bg);
+    }
 
     // Label text centred inside the banner
     const style = new TextStyle({

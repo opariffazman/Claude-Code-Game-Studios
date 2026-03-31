@@ -292,8 +292,11 @@ export class DesktopManager {
    * @param y          - Absolute Y position in canvas pixels.
    * @param w          - Width in canvas pixels.
    * @param h          - Height in canvas pixels.
-   * @param onRespawn  - Optional callback invoked after respawn with the new
-   *                     inner content Container so content can be rebuilt.
+   * @param onRespawn   - Optional callback invoked after respawn with the new
+   *                      inner content Container so content can be rebuilt.
+   * @param elementType - Optional ElementType override (default: 'window').
+   *                      Pass 'notification' to have the health dashboard treat
+   *                      this window as a notification element (blue pips).
    */
   createFunctionalWindow(
     title: string,
@@ -302,6 +305,7 @@ export class DesktopManager {
     w: number,
     h: number,
     onRespawn?: (container: Container) => void,
+    elementType?: import('../types').ElementType,
   ): { element: DesktopElement; container: Container } | null {
     const style = 'brown';
     const themeName = this._themeLoader?.currentTheme?.name;
@@ -679,16 +683,16 @@ export class DesktopManager {
     // desk-smasher-30t: notification panels removed — AchievementToast handles milestones.
     // this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
 
-    // Decorative hanging banner — same logic as buildDesktop().
-    const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
-    if (hangingTex) {
-      const banner = new Sprite(hangingTex);
-      banner.anchor.set(0.5, 0);
-      const bannerScale = this.screenW / 1920;
-      banner.scale.set(bannerScale * 0.8);
-      banner.position.set(this.screenW / 2, 0);
-      this.container.addChild(banner);
-    }
+    // desk-smasher-ao7: decorative hanging banner removed.
+    // const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
+    // if (hangingTex) {
+    //   const banner = new Sprite(hangingTex);
+    //   banner.anchor.set(0.5, 0);
+    //   const bannerScale = this.screenW / 1920;
+    //   banner.scale.set(bannerScale * 0.8);
+    //   banner.position.set(this.screenW / 2, 0);
+    //   this.container.addChild(banner);
+    // }
 
     // Re-snapshot build dimensions and health totals.
     this._buildW = this.screenW;
@@ -764,16 +768,17 @@ export class DesktopManager {
     // desk-smasher-30t: notification panels removed — AchievementToast handles milestones.
     // this.buildNotifications(this._sessionNotifCount);
 
+    // desk-smasher-ao7: decorative hanging banner removed.
     // desk-smasher-621: decorative hanging banner at top-center.
-    const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
-    if (hangingTex) {
-      const banner = new Sprite(hangingTex);
-      banner.anchor.set(0.5, 0);
-      const bannerScale = this.screenW / 1920;
-      banner.scale.set(bannerScale * 0.8);
-      banner.position.set(this.screenW / 2, 0);
-      this.container.addChild(banner);
-    }
+    // const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
+    // if (hangingTex) {
+    //   const banner = new Sprite(hangingTex);
+    //   banner.anchor.set(0.5, 0);
+    //   const bannerScale = this.screenW / 1920;
+    //   banner.scale.set(bannerScale * 0.8);
+    //   banner.position.set(this.screenW / 2, 0);
+    //   this.container.addChild(banner);
+    // }
 
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);

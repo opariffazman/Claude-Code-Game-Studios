@@ -182,8 +182,9 @@ export class RebuildCycle {
   }
 
   private updateRebuilding(): void {
-    // Select the next theme and rebuild the desktop instantly
-    const nextTheme = this.themeSystem.getNextTheme();
+    // desk-smasher-u3j: stay on Animal Farm — do NOT advance theme on rebuild.
+    // const nextTheme = this.themeSystem.getNextTheme();
+    const nextTheme = this.themeSystem.currentTheme;
     this.desktopManager.rebuildWithTheme(nextTheme);
     this.onRebuild();
     this.enterState('fading_in');
