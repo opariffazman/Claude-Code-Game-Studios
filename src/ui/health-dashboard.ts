@@ -1,21 +1,13 @@
 /**
- * Health Dashboard — horizontal health bars embedded in the taskbar.
+ * Health Dashboard — circle pip indicators in the taskbar.
  *
- * Three horizontal bars show aggregate health per element category:
- *   Green  = animals (icon elements)
- *   Red    = structures (window + sticky + widget elements)
- *   Blue   = alerts (notification elements)
- *
- * Bars sit between the Start button and the tray icons, filling proportionally
- * left-to-right as health depletes. Implemented as NineSliceSprite pairs using
- * the opaque Kenney adventure progress SVGs:
- *   - progress_white_horizontal.svg  — visible grey/white empty track
- *   - progress_green/red/blue_horizontal.svg — solid colored fills
+ * 3 groups of 5 pips each (green/red/blue). Filled circles = remaining health,
+ * white circles = depleted. Like taskbar app icons on a real desktop.
  *
  * Implements: health-dashboard.md — centralized health display, taskbar-embedded layout.
- * Spec: desk-smasher-v37 — horizontal bars in taskbar replacing right-edge dashboard.
+ * Spec: desk-smasher-hii — pip indicators replacing horizontal bars.
  */
-import { Assets, Container, NineSliceSprite, Texture } from 'pixi.js';
+import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import type { DesktopElement, ElementType } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -23,34 +15,28 @@ import type { DesktopElement, ElementType } from '../types';
 // ---------------------------------------------------------------------------
 
 const SVG_DIR = 'assets/kenney/ui/adventure/svg';
-const BAR_BG_PATH = `${SVG_DIR}/progress_white_horizontal.svg`;
-const BAR_FILL_PATHS: Record<string, string> = {
-  animals:    `${SVG_DIR}/progress_green_horizontal.svg`,
-  structures: `${SVG_DIR}/progress_red_horizontal.svg`,
-  alerts:     `${SVG_DIR}/progress_blue_horizontal.svg`,
+
+const PIP_FILLS: Record<string, string> = {
+  animals:    `${SVG_DIR}/progress_green_small.svg`,
+  structures: `${SVG_DIR}/progress_red_small.svg`,
+  alerts:     `${SVG_DIR}/progress_blue_small.svg`,
 };
+const PIP_EMPTY = `${SVG_DIR}/progress_white_small.svg`;
 
 // ---------------------------------------------------------------------------
 // Layout tuning knobs
 // ---------------------------------------------------------------------------
 
-/** Left edge of bar area — after Start button (50 px) plus a small gap. */
-const BAR_AREA_START_X = 55;
-/** Right margin reserved for tray icons + clock. */
-const BAR_AREA_RIGHT_RESERVE = 120;
-/** Gap in pixels between adjacent bars. */
-const BAR_GAP = 6;
-/** Bar height as a fraction of taskbar height. */
-const BAR_HEIGHT_RATIO = 0.5;
-/** Minimum fill width in pixels — keeps bar visible near zero health. */
-const MIN_FILL_W = 6;
-
-/**
- * NineSlice cap width in texture pixels.
- * The 32×16 SVGs are loaded at resolution 4, giving 128×64 texture pixels.
- * The rounded caps span ~8 SVG px on each side → 8 × 4 = 32 texture px.
- */
-const CAP = 32;
+/** Number of pip circles per category group. */
+const PIPS_PER_CATEGORY = 5;
+/** Display size of each pip in pixels. */
+const PIP_SIZE = 20;
+/** Gap between adjacent pips within a group. */
+const PIP_SPACING = 4;
+/** Gap between category groups. */
+const GROUP_SPACING = 16;
+/** Left edge of pip area — after Start button. */
+const START_X = 55;
 
 const CATEGORIES = ['animals', 'structures', 'alerts'] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -73,14 +59,10 @@ function getCategory(type: ElementType): Category | null {
 // Internal state
 // ---------------------------------------------------------------------------
 
-interface BarState {
-  /** Category this bar tracks. */
+interface PipGroup {
   category: Category;
-  /** Colored fill NineSliceSprite — width adjusted on damage. */
-  fillSprite: NineSliceSprite;
-  /** Maximum bar visual width at full health (equals singleBarW). */
-  maxW: number;
-  /** Sum of maxHealth across all tracked elements (set on build/rebuild). */
+  pips: Sprite[];
+  fillTexture: Texture;
   maxHealthSum: number;
 }
 
@@ -89,7 +71,7 @@ interface BarState {
 // ---------------------------------------------------------------------------
 
 /**
- * Centralized health dashboard — horizontal bars inside the taskbar container.
+ * Centralized health dashboard — circle pip indicators inside the taskbar container.
  *
  * Lifecycle:
  *   1. `new HealthDashboard()` — no-op until build() is called.
@@ -102,7 +84,8 @@ interface BarState {
 export class HealthDashboard {
   /** Container owned by this dashboard — child of the taskbar container. */
   private dashContainer: Container | null = null;
-  private bars: BarState[] = [];
+  private groups: PipGroup[] = [];
+  private emptyTexture: Texture | null = null;
   private _ready = false;
 
   // Cached taskbar reference + dims — used by resize() to rebuild without
@@ -116,7 +99,7 @@ export class HealthDashboard {
   private _screenH: number;
 
   constructor(_parent: Container, screenW: number, screenH: number) {
-    // _parent is no longer used — bars live inside the taskbar container.
+    // _parent is no longer used — pips live inside the taskbar container.
     // Parameter kept for API compatibility so app.ts construction site is unchanged.
     this._screenW = screenW;
     this._screenH = screenH;
@@ -127,19 +110,19 @@ export class HealthDashboard {
   // ---------------------------------------------------------------------------
 
   /**
-   * Preload all opaque Kenney progress SVGs required by the bars.
+   * Preload all four pip SVGs required by the dashboard.
    * Must be awaited before calling build().
    */
   async preload(): Promise<void> {
-    const paths = [BAR_BG_PATH, ...Object.values(BAR_FILL_PATHS)];
-    for (const path of paths) {
-      Assets.add({ alias: path, src: path, data: { resolution: 4 } });
+    const paths = [...Object.values(PIP_FILLS), PIP_EMPTY];
+    for (const p of paths) {
+      Assets.add({ alias: p, src: p, data: { resolution: 4 } });
     }
     await Assets.load(paths);
   }
 
   /**
-   * Build (or rebuild) the dashboard bars inside the taskbar container.
+   * Build (or rebuild) the dashboard pip groups inside the taskbar container.
    * Call after desktop generation and after every rebuild cycle.
    *
    * @param elements         - Full element list from DesktopManager.
@@ -166,10 +149,9 @@ export class HealthDashboard {
       this.dashContainer.destroy({ children: true });
       this.dashContainer = null;
     }
-    this.bars = [];
+    this.groups = [];
     this._ready = false;
 
-    const tbW = this._taskbarW;
     const tbH = this._taskbarH;
 
     // Determine which categories have at least one element.
@@ -178,113 +160,95 @@ export class HealthDashboard {
     );
     if (activeCategories.length === 0) return;
 
-    // Retrieve preloaded textures — bail if assets are not yet loaded.
-    let bgTex: Texture;
+    // Retrieve preloaded empty texture — bail if assets are not yet loaded.
+    let emptyTex: Texture;
     try {
-      bgTex = Texture.from(BAR_BG_PATH);
+      emptyTex = Texture.from(PIP_EMPTY);
     } catch {
       return;
     }
+    this.emptyTexture = emptyTex;
 
-    // Compute per-bar geometry.
-    const barAreaW = tbW - BAR_AREA_RIGHT_RESERVE - BAR_AREA_START_X;
-    const barCount = activeCategories.length;
-    const singleBarW = Math.max(
-      MIN_FILL_W,
-      (barAreaW - (barCount - 1) * BAR_GAP) / barCount,
-    );
-    const barH = Math.round(tbH * BAR_HEIGHT_RATIO);
-    const barY = Math.round((tbH - barH) / 2);
+    // Vertical center of pips within the taskbar.
+    const barY = Math.round((tbH - PIP_SIZE) / 2);
 
     // New container — lives inside the taskbar at z-order top.
     this.dashContainer = new Container();
     this.dashContainer.label = 'health-dashboard';
     this._taskbarContainer.addChild(this.dashContainer);
 
-    let xCursor = BAR_AREA_START_X;
+    let xCursor = START_X;
     for (const cat of activeCategories) {
-      const barX = xCursor;
-
-      // Background track — opaque white/grey capsule.
-      const bg = new NineSliceSprite({
-        texture:     bgTex,
-        leftWidth:   CAP,
-        topHeight:   0,
-        rightWidth:  CAP,
-        bottomHeight: 0,
-        width:  singleBarW,
-        height: barH,
-      });
-      bg.label = `health-bg-${cat}`;
-      bg.position.set(barX, barY);
-      this.dashContainer.addChild(bg);
-
-      // Colored fill — solid opaque capsule, starts at full width.
+      // Retrieve fill texture for this category.
       let fillTex: Texture;
       try {
-        fillTex = Texture.from(BAR_FILL_PATHS[cat]);
+        fillTex = Texture.from(PIP_FILLS[cat]);
       } catch {
-        xCursor += singleBarW + BAR_GAP;
+        // Skip this group — advance cursor by a full group width so layout stays stable.
+        xCursor += PIPS_PER_CATEGORY * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
         continue;
       }
 
-      const fill = new NineSliceSprite({
-        texture:     fillTex,
-        leftWidth:   CAP,
-        topHeight:   0,
-        rightWidth:  CAP,
-        bottomHeight: 0,
-        width:  singleBarW,
-        height: barH,
-      });
-      fill.label = `health-fill-${cat}`;
-      fill.position.set(barX, barY);
-      this.dashContainer.addChild(fill);
+      const pips: Sprite[] = [];
+      for (let i = 0; i < PIPS_PER_CATEGORY; i++) {
+        const pip = new Sprite(fillTex);
+        pip.width = PIP_SIZE;
+        pip.height = PIP_SIZE;
+        pip.position.set(xCursor + i * (PIP_SIZE + PIP_SPACING), barY);
+        pip.label = `pip-${cat}-${i}`;
+        this.dashContainer.addChild(pip);
+        pips.push(pip);
+      }
 
       const maxHealthSum = elements
         .filter(e => getCategory(e.type) === cat)
         .reduce((sum, e) => sum + e.maxHealth, 0);
 
-      this.bars.push({
-        category: cat,
-        fillSprite: fill,
-        maxW: singleBarW,
-        maxHealthSum,
-      });
+      this.groups.push({ category: cat, pips, fillTexture: fillTex, maxHealthSum });
 
-      xCursor += singleBarW + BAR_GAP;
+      // Advance past this group's pips plus the gap to the next group.
+      xCursor += PIPS_PER_CATEGORY * (PIP_SIZE + PIP_SPACING) - PIP_SPACING + GROUP_SPACING;
     }
 
     this._ready = true;
   }
 
   /**
-   * Recompute bar fill widths based on current element health.
+   * Swap pip textures to reflect current element health.
+   * Pips deplete right-to-left — the rightmost pip goes empty first.
    * Call after every health decrement in the hit pipeline.
    *
    * @param elements - Full element list from DesktopManager.
    */
   onDamage(elements: DesktopElement[]): void {
-    if (!this._ready) return;
+    if (!this._ready || !this.emptyTexture) return;
 
-    for (const bar of this.bars) {
+    const emptyTex = this.emptyTexture;
+
+    for (const group of this.groups) {
       let currentHealthSum = 0;
       for (const el of elements) {
-        if (getCategory(el.type) === bar.category && !el.destroyed) {
+        if (getCategory(el.type) === group.category && !el.destroyed) {
           currentHealthSum += el.health;
         }
       }
 
-      const ratio = bar.maxHealthSum > 0 ? currentHealthSum / bar.maxHealthSum : 0;
-      bar.fillSprite.width = Math.max(MIN_FILL_W, bar.maxW * ratio);
+      const ratio = group.maxHealthSum > 0 ? currentHealthSum / group.maxHealthSum : 0;
+      const filledCount = Math.ceil(ratio * PIPS_PER_CATEGORY);
+
+      for (let i = 0; i < PIPS_PER_CATEGORY; i++) {
+        // Pips deplete right-to-left: rightmost (index 4) goes empty first.
+        const isFilled = i < filledCount;
+        group.pips[i].texture = isFilled ? group.fillTexture : emptyTex;
+      }
     }
   }
 
   /**
-   * Reposition and resize bars when the window dimensions change.
-   * Rebuilds geometry then snaps fill to current health percentage.
+   * Reposition and resize pip groups when the window dimensions change.
+   * Rebuilds geometry then snaps pip states to current health percentage.
    *
-   * @param elements - Current element list (for re-snapping fill ratios).
+   * @param elements - Current element list (for re-snapping pip states).
    * @param screenW  - New screen width (stored for API compatibility).
    * @param screenH  - New screen height (stored for API compatibility).
    */
@@ -316,7 +280,8 @@ export class HealthDashboard {
       this.dashContainer.destroy({ children: true });
       this.dashContainer = null;
     }
-    this.bars = [];
+    this.groups = [];
+    this.emptyTexture = null;
     this._ready = false;
   }
 }
