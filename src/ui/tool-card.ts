@@ -32,7 +32,7 @@ export class ToolCard {
     if (!stats) return;
 
     // Tool name (title)
-    const titleStyle = new TextStyle({ fontSize: 14, fill: 0xffffff, fontFamily: 'sans-serif', fontWeight: 'bold' });
+    const titleStyle = new TextStyle({ fontSize: 14, fill: 0x333333, fontFamily: 'sans-serif', fontWeight: 'bold' });
     const title = new Text({ text: stats.displayName, style: titleStyle });
     title.anchor.set(0.5, 0);
     title.position.set(w / 2, 8);
@@ -43,7 +43,7 @@ export class ToolCard {
     this.container.addChild(icon);
 
     // Stats
-    const statStyle = new TextStyle({ fontSize: 10, fill: 0xcccccc, fontFamily: 'monospace' });
+    const statStyle = new TextStyle({ fontSize: 10, fill: 0x444444, fontFamily: 'monospace' });
     const statsText = [
       `DMG: ${stats.damage}`,
       `AoE: ${stats.aoe}`,
@@ -57,7 +57,7 @@ export class ToolCard {
     }
 
     // Description
-    const descStyle = new TextStyle({ fontSize: 9, fill: 0x999999, fontFamily: 'sans-serif', fontStyle: 'italic' });
+    const descStyle = new TextStyle({ fontSize: 9, fill: 0x666666, fontFamily: 'sans-serif', fontStyle: 'italic' });
     const desc = new Text({ text: stats.description, style: descStyle });
     desc.position.set(8, h - 20);
     this.container.addChild(desc);

@@ -193,9 +193,17 @@ export class DeskSmasherApp {
         this.healthDashboard.onDamage(this.desktop.elements);
       },
       // On full clear: all damageable elements destroyed simultaneously → celebrate.
+      // Implements: desk-smasher-y50 — show achievement toast + delay rebuild so
+      // celebration particles are visible before the desktop transitions away.
       () => {
         this.celebration.fire(this.app!.screen.width, this.app!.screen.height);
-        this.rebuildCycle.triggerCelebration();
+        this.achievementToast?.show('TOTAL DESTRUCTION!');
+        this.milestoneTracker.recordFullClear();
+        // Delay rebuild 1.5 s so the celebration burst is visible before the
+        // RebuildCycle fade-to-white transition overwrites the particles.
+        setTimeout(() => {
+          this.rebuildCycle.triggerCelebration();
+        }, 1500);
       },
     );
     {
@@ -215,9 +223,12 @@ export class DeskSmasherApp {
 
     // Achievement Toast + MilestoneTracker — fire-once callbacks for session milestones.
     // Implements: desk-smasher-3qy.11 / 3qy.12 — milestone tracking + toast rendering.
+    // Implements: desk-smasher-7jg — milestone entries appear in the Combat Log with
+    // amber colour so recent achievements persist visibly in the top-right panel.
     this.achievementToast = new AchievementToast(uiLayer, this.app.screen.width);
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
+      this.combatLog?.addEntry('★', label, 'milestone');
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
@@ -707,25 +718,26 @@ export class DeskSmasherApp {
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
 
-    // -- Combat Log: x=55%, y=8%, w=18%, h=35%
-    const clX = Math.round(sw * 0.55);
-    const clY = Math.round(sh * 0.08);
+    // -- Combat Log: top-right area (Bug 3: spread from 55% → 60%)
+    const clX = Math.round(sw * 0.60);
+    const clY = Math.round(sh * 0.05);
     const clW = Math.round(sw * 0.18);
     const clH = Math.round(sh * 0.35);
     this.combatLog = new CombatLog();
     const clResult = this.desktop.createFunctionalWindow(
       'Combat Log', clX, clY, clW, clH,
       (newContainer) => {
-        this.combatLog!.build(newContainer, 0, 28, clW, clH - 28);
+        // Bug 1: inset content inside the ~16px panel border
+        this.combatLog!.build(newContainer, 20, 40, clW - 40, clH - 55);
       },
     );
     if (clResult) {
-      this.combatLog.build(clResult.container, 0, 28, clW, clH - 28);
+      this.combatLog.build(clResult.container, 20, 40, clW - 40, clH - 55);
     }
 
-    // -- Tool Card: x=40%, y=10%, w=14%, h=25%
-    const tcX = Math.round(sw * 0.40);
-    const tcY = Math.round(sh * 0.10);
+    // -- Tool Card: center-left, below icons (Bug 3: spread from 40% → 22%)
+    const tcX = Math.round(sw * 0.22);
+    const tcY = Math.round(sh * 0.08);
     const tcW = Math.round(sw * 0.14);
     const tcH = Math.round(sh * 0.25);
     this._toolCardW = tcW;
@@ -734,18 +746,19 @@ export class DeskSmasherApp {
     const tcResult = this.desktop.createFunctionalWindow(
       'Tool Card', tcX, tcY, tcW, tcH,
       (newContainer) => {
-        this.toolCard!.build(newContainer, 0, 28, tcW, tcH - 28);
-        this.toolCard!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW, tcH - 28);
+        // Bug 1: inset content inside the ~16px panel border
+        this.toolCard!.build(newContainer, 20, 40, tcW - 40, tcH - 55);
+        this.toolCard!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW - 40, tcH - 55);
       },
     );
     if (tcResult) {
-      this.toolCard.build(tcResult.container, 0, 28, tcW, tcH - 28);
-      this.toolCard.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW, tcH - 28);
+      this.toolCard.build(tcResult.container, 20, 40, tcW - 40, tcH - 55);
+      this.toolCard.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW - 40, tcH - 55);
     }
 
-    // -- Tool Bag: x=35%, y=42%, w=22%, h=12%
-    const tbX = Math.round(sw * 0.35);
-    const tbY = Math.round(sh * 0.42);
+    // -- Tool Bag: bottom-center, above taskbar (Bug 3: spread from 35%/42% → 30%/55%)
+    const tbX = Math.round(sw * 0.30);
+    const tbY = Math.round(sh * 0.55);
     const tbW = Math.round(sw * 0.22);
     const tbH = Math.round(sh * 0.12);
     this._toolBagW = tbW;
@@ -754,13 +767,14 @@ export class DeskSmasherApp {
     const tbResult = this.desktop.createFunctionalWindow(
       'Tool Bag', tbX, tbY, tbW, tbH,
       (newContainer) => {
-        this.toolBag!.build(newContainer, 0, 28, tbW, tbH - 28);
-        this.toolBag!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW, tbH - 28);
+        // Bug 1: inset content inside the ~16px panel border
+        this.toolBag!.build(newContainer, 20, 40, tbW - 40, tbH - 55);
+        this.toolBag!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW - 40, tbH - 55);
       },
     );
     if (tbResult) {
-      this.toolBag.build(tbResult.container, 0, 28, tbW, tbH - 28);
-      this.toolBag.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW, tbH - 28);
+      this.toolBag.build(tbResult.container, 20, 40, tbW - 40, tbH - 55);
+      this.toolBag.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW - 40, tbH - 55);
     }
   }
 

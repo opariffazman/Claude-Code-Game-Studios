@@ -61,7 +61,7 @@ export class ToolBag {
       // Tool name
       const nameStyle = new TextStyle({
         fontSize: 8,
-        fill: isActive ? 0xffffff : 0x888888,
+        fill: isActive ? 0x333333 : 0x777777,
         fontFamily: 'sans-serif',
         align: 'center',
       });
