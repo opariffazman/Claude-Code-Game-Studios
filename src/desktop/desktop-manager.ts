@@ -506,6 +506,20 @@ export class DesktopManager {
     // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
     // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
+    // desk-smasher-reu: notification banners using adventure banner_modern sprite.
+    this.buildNotifications(randInt(2, 3));
+
+    // desk-smasher-621: decorative hanging banner at top-center.
+    const hangingTex = Assets.get<Texture>('assets/kenney/ui/adventure/banner_hanging.png');
+    if (hangingTex) {
+      const banner = new Sprite(hangingTex);
+      banner.anchor.set(0.5, 0);
+      const bannerScale = this.screenW / 1920;
+      banner.scale.set(bannerScale * 0.8);
+      banner.position.set(this.screenW / 2, 0);
+      this.container.addChild(banner);
+    }
+
     // Initialise cached health counters after all elements are created.
     this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
     this._currentHealth = this._totalHealth;
@@ -840,15 +854,39 @@ export class DesktopManager {
 
   private buildNotifications(count: number): void {
     const notifs = shuffle(NOTIF_TEXTS).slice(0, count);
-    const w = 220;
-    const h = 50;
+    const bannerTex = this._tilePanelBuilder?.isReady
+      ? Assets.get<Texture>('assets/kenney/ui/adventure/banner_modern.png')
+      : undefined;
 
     notifs.forEach((notif, i) => {
+      const bannerScale = this.screenW / 1920;
+      const w = bannerTex ? Math.round(220 * bannerScale) : 220;
+      const h = bannerTex
+        ? Math.round(w * (bannerTex.height / bannerTex.width))
+        : 50;
+
       const x = Math.round(this.screenW - w - 10);
-      const y = Math.round(this.screenH * 0.08) + i * 55;
+      const y = Math.round(this.screenH * 0.08) + i * (h + 5);
       const color = pick([0x4488ff, 0x44cc44, 0xff8844, 0xcc44cc]);
 
-      const { container: c } = this.factory.createNotification(notif.text, notif.icon, w, h, color);
+      let c: Container;
+      if (bannerTex) {
+        // desk-smasher-reu: use adventure banner_modern sprite as notification background.
+        c = new Container();
+        c.label = `notification-banner-${i}`;
+        const banner = new Sprite(bannerTex);
+        banner.width = w;
+        banner.height = h;
+        c.addChild(banner);
+        // Notif text centered on the banner.
+        const textStyle = new TextStyle({ fontSize: Math.round(12 * bannerScale), fill: 0x3a2010, fontFamily: 'sans-serif' });
+        const label = new Text({ text: notif.text, style: textStyle });
+        label.anchor.set(0.5, 0.5);
+        label.position.set(w / 2, h / 2);
+        c.addChild(label);
+      } else {
+        ({ container: c } = this.factory.createNotification(notif.text, notif.icon, w, h, color));
+      }
       c.position.set(x, y);
       this.container.addChild(c);
 

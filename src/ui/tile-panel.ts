@@ -37,6 +37,10 @@ const BORDER_INSET = 16;
 /** Adventure pack close button — standalone sprite, render at native size. */
 const CLOSE_BTN = 'assets/kenney/ui/adventure/close_red.png';
 
+/** Adventure banner sprites — notification banners and decorative hanging banner. */
+const ADV_BANNER_MODERN  = 'assets/kenney/ui/adventure/banner_modern.png';
+const ADV_BANNER_HANGING = 'assets/kenney/ui/adventure/banner_hanging.png';
+
 export class TilePanelBuilder {
   private _ready = false;
 
@@ -48,6 +52,8 @@ export class TilePanelBuilder {
       ADV_TASKBAR,
       ADV_ROUND_BTN,
       CLOSE_BTN,
+      ADV_BANNER_MODERN,
+      ADV_BANNER_HANGING,
     ]);
     this._ready = true;
   }
@@ -110,8 +116,8 @@ export class TilePanelBuilder {
       const btn = new Sprite(closeTex);
       btn.anchor.set(1, 0);
       // Scale close button proportionally to window size
-      const btnScale = Math.min(w, h) / 300; // ~0.5 for small windows, ~1.0 for large
-      const clampedScale = Math.max(0.3, Math.min(1.0, btnScale));
+      const btnScale = Math.min(w, h) / 600; // was /300 — now 50% smaller
+      const clampedScale = Math.max(0.15, Math.min(0.5, btnScale));
       btn.scale.set(clampedScale);
       btn.position.set(w - 4, 4);
       c.addChild(btn);
