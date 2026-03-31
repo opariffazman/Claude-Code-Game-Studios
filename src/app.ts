@@ -203,9 +203,7 @@ export class DeskSmasherApp {
       this.respawnManager.setTotalDamageable(damageableCount);
     }
 
-    // Create functional windows (Combat Log, Tool Card, Tool Bag) with live game data.
-    // Called after desktop + respawnManager are both ready so elements[] is populated.
-    this._createFunctionalWindows();
+    // Functional windows created after mouseTools is initialized (see below).
 
     // 10. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
@@ -273,6 +271,9 @@ export class DeskSmasherApp {
 
     // Tool indicator — bottom-right corner, above taskbar
     this.toolIndicator = new ToolIndicator(uiLayer, this.app.screen.width, this.app.screen.height);
+
+    // Create functional windows AFTER mouseTools so ToolCard/ToolBag can read currentTool.
+    this._createFunctionalWindows();
 
     // 13. Rebuild cycle — monitors destruction and drives animated theme transitions.
     //     Overlay is added to the stage so it renders above all desktop content.
