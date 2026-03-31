@@ -97,6 +97,7 @@ export class TilePanelBuilder {
     const panelPath = (theme && ADV_PANELS[theme]) ? ADV_PANELS[theme] : PANEL_TILES[style];
     const panelTex = Assets.get<Texture>(panelPath);
     if (panelTex) {
+      panelTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
       const panel = new NineSliceSprite({
         texture:      panelTex,
         leftWidth:    BORDER_INSET,
@@ -113,6 +114,7 @@ export class TilePanelBuilder {
     if (theme && ADV_PANELS[theme]) {
       const titleBarTex = Assets.get<Texture>(ADV_TASKBAR);
       if (titleBarTex) {
+        titleBarTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
         const titleBar = new NineSliceSprite({
           texture:      titleBarTex,
           leftWidth:    BORDER_INSET,
@@ -154,6 +156,8 @@ export class TilePanelBuilder {
       const bgTex = Assets.get<Texture>(ADV_PROGRESS_BG);
       const fillTex = Assets.get<Texture>(ADV_PROGRESS_FILL);
       if (bgTex && fillTex) {
+        bgTex.source.scaleMode = 'nearest';   // Crisp pixel art, no bilinear blur
+        fillTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
         // Background track
         const bg = new Sprite(bgTex);
         bg.position.set(contentX, barY);
@@ -172,6 +176,7 @@ export class TilePanelBuilder {
     // Close button — scaled proportionally to window size, top-right corner.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {
+      closeTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
       const btn = new Sprite(closeTex);
       btn.anchor.set(1, 0);
       // Scale close button proportionally to window size
@@ -189,6 +194,7 @@ export class TilePanelBuilder {
   buildPanel(style: PanelStyle, w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(PANEL_TILES[style]);
     if (!tex) return null;
+    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
     return new NineSliceSprite({
       texture:      tex,
       leftWidth:    BORDER_INSET,
@@ -210,6 +216,7 @@ export class TilePanelBuilder {
   buildTaskbarBg(w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(ADV_TASKBAR);
     if (!tex) return null;
+    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
     return new NineSliceSprite({
       texture:      tex,
       leftWidth:    BORDER_INSET,
@@ -228,6 +235,7 @@ export class TilePanelBuilder {
   buildStartButton(): Sprite | null {
     const tex = Assets.get<Texture>(ADV_ROUND_BTN);
     if (!tex) return null;
+    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
     return new Sprite(tex);
   }
 
@@ -241,6 +249,7 @@ export class TilePanelBuilder {
   buildStickyBg(w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(ADV_GRID_PAPER);
     if (!tex) return null;
+    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
     return new NineSliceSprite({
       texture:      tex,
       leftWidth:    BORDER_INSET,

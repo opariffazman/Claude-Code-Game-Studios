@@ -119,6 +119,7 @@ export class ElementFactory {
     const container = new Container();
     container.label = `icon-${label}`;
 
+    texture.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
     // Preserve aspect ratio — scale uniformly to fit within the cell.
