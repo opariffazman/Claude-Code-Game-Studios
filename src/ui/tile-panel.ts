@@ -104,11 +104,15 @@ export class TilePanelBuilder {
       }
     }
 
-    // Close button — native size, top-right corner.
+    // Close button — scaled proportionally to window size, top-right corner.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {
       const btn = new Sprite(closeTex);
       btn.anchor.set(1, 0);
+      // Scale close button proportionally to window size
+      const btnScale = Math.min(w, h) / 300; // ~0.5 for small windows, ~1.0 for large
+      const clampedScale = Math.max(0.3, Math.min(1.0, btnScale));
+      btn.scale.set(clampedScale);
       btn.position.set(w - 4, 4);
       c.addChild(btn);
     }
