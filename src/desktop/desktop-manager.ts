@@ -742,24 +742,14 @@ export class DesktopManager {
       this._themeLoader!.resetShuffle();
     }
 
-    // Determine icon visual size — derived from sprite scale or fixed fallback.
-    // Implements: desk-smasher-377 — scale animals relative to viewport.
+    // Fixed icon size — always the same regardless of count.
+    // Fixes: desk-smasher-yy2 — previously icon size depended on cell size which
+    // depended on count (more icons = smaller cells = smaller icons).
+    // Now size is derived solely from viewport scale and ICON_TARGET_SIZE config.
     const baseScale = Math.min(this.screenW, this.screenH) / 1200;
-    const SPRITE_SCALE = baseScale * 0.6;
-
-    // Use the first available texture to determine icon dimensions for grid layout.
-    // All icons in a theme have the same natural size, so sampling one is sufficient.
-    let iconW = 64;
-    let iconH = 64;
-    if (useSprites) {
-      const sampleTex = this._themeLoader!.getNextIconTexture();
-      if (sampleTex) {
-        iconW = Math.round(sampleTex.width  * SPRITE_SCALE);
-        iconH = Math.round(sampleTex.height * SPRITE_SCALE);
-      }
-      // Reset shuffle again — we consumed one texture for measurement.
-      this._themeLoader!.resetShuffle();
-    }
+    const iconSize = Math.round(LAYOUT_CONFIG.ICON_TARGET_SIZE * baseScale);
+    const iconW = iconSize;
+    const iconH = iconSize;
 
     // Resolve icon zone to pixel coordinates.
     const cols = this.screenW < 1200
@@ -794,14 +784,17 @@ export class DesktopManager {
           const frames = this._themeLoader!.currentTheme.iconFrames;
           const frameName = frames[i % frames.length] ?? labels[i] ?? `Icon ${i}`;
           displayLabel = frameName.charAt(0).toUpperCase() + frameName.slice(1);
-          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, p.w, p.h));
+          // Pass fixed iconSize — uniform scale within the sprite so all icons
+          // are the same pixel size regardless of how many icons are on screen.
+          // Fixes: desk-smasher-yy2
+          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, iconSize, iconSize));
         } else {
           displayLabel = labels[i] ?? `Icon ${i}`;
-          ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
+          ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
         }
       } else {
         displayLabel = labels[i] ?? `Icon ${i}`;
-        ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
+        ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
       }
 
       c.position.set(p.x, p.y);

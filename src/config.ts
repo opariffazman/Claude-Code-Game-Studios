@@ -109,6 +109,14 @@ export const LAYOUT_CONFIG = {
   ICON_COUNT_MIN: 8,
   ICON_COUNT_MAX: 12,
 
+  /**
+   * Fixed target icon size in logical pixels (before viewport scale).
+   * Fixes: desk-smasher-yy2 — icon size must be independent of icon count.
+   * The viewport scale factor (Math.min(screenW,screenH)/1200) is applied at
+   * runtime; this value is the base at 1200px reference height.
+   */
+  ICON_TARGET_SIZE: 64,
+
   /** Horizontal cascade offset per additional window (px). */
   WINDOW_CASCADE_X: 40,
   /** Vertical cascade offset per additional window (px). */
