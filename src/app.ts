@@ -170,6 +170,9 @@ export class DeskSmasherApp {
 
     // Mouse trail sits between desktop and particles in z-order; attaches to stage
     this.mouseTrail = new MouseTrail(this.app.stage);
+    // Wire sprite particles so the trail emits star/circle/magic sprites every 3rd sparkle.
+    // Implements: desk-smasher-d6e — sprite particle mouse trail.
+    this.mouseTrail.setSpriteParticles(this.spriteParticles);
 
     // Chaos meter — stateless rolling window, no dependencies
     this.chaosMeter = new ChaosMeter();
@@ -366,6 +369,30 @@ export class DeskSmasherApp {
    * via applyTool(), so we don't add random registry effects on top.
    */
   /**
+   * Maps each mouse tool to the SpriteParticles set used on full destruction.
+   * Implements: desk-smasher-auk — tool-specific destruction particle sets.
+   */
+  private static readonly TOOL_DESTROY_PARTICLES: Record<string, string> = {
+    hammer: 'slash',   // slash marks on impact
+    laser:  'fire',    // burning
+    bomb:   'flame',   // explosion flames
+    freeze: 'magic',   // ice crystals
+    magnet: 'twirl',   // swirling vortex
+  };
+
+  /**
+   * Maps each mouse tool to the SpriteParticles set used on partial damage.
+   * Implements: desk-smasher-auk — tool-specific damage particle sets.
+   */
+  private static readonly TOOL_DAMAGE_PARTICLES: Record<string, string> = {
+    hammer: 'dirt',    // debris
+    laser:  'spark',   // sparks
+    bomb:   'smoke',   // smoke puff
+    freeze: 'light',   // frost shimmer
+    magnet: 'circle',  // energy rings
+  };
+
+  /**
    * Maps each mouse tool to a SoundType for the periodic drag stamp sound.
    * Implements: desk-smasher-7cc — wallpaper damage marks + sound during drag.
    */
@@ -408,7 +435,10 @@ export class DeskSmasherApp {
         ?? this.destructionRegistry.getRandom();
       effect(element, container, this.particles, this.audioManager);
 
-      this.spriteParticles.emit(cx, cy, 8, 'spark');
+      // Tool-specific destruction particles — each tool has a visual identity.
+      // Implements: desk-smasher-auk — tool-aware particle sets.
+      const destroySet = DeskSmasherApp.TOOL_DESTROY_PARTICLES[toolName] || 'spark';
+      this.spriteParticles.emit(cx, cy, 8, destroySet as import('./vfx/sprite-particles').ParticleSet);
     } else {
       // Tool-consistent damage: always use the same damage effect (shake)
       // rather than random registry picks that look like cycling
@@ -416,7 +446,11 @@ export class DeskSmasherApp {
         ?? this.damageRegistry.getRandom();
       dmgEffect(element, container, this.particles, this.audioManager);
       applyProgressiveDamage(element, container);
-      this.spriteParticles.emit(cx, cy, 3, 'dirt');
+
+      // Tool-specific damage particles — partial hit visual identity.
+      // Implements: desk-smasher-auk — tool-aware particle sets.
+      const damageSet = DeskSmasherApp.TOOL_DAMAGE_PARTICLES[toolName] || 'dirt';
+      this.spriteParticles.emit(cx, cy, 3, damageSet as import('./vfx/sprite-particles').ParticleSet);
     }
 
     this.desktop.applyImpulse(element);

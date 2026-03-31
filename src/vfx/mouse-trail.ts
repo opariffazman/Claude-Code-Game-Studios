@@ -28,6 +28,7 @@
 
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { MOUSE_TRAIL_CONFIG, PARTICLE_CONFIG } from '../config';
+import type { SpriteParticles } from './sprite-particles';
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -81,6 +82,16 @@ export class MouseTrail {
 
   /** Retained so the exact same function reference is removed on destroy. */
   private readonly _onResize: () => void;
+
+  /**
+   * Optional SpriteParticles reference for supplemental sprite trail emission.
+   * Set via setSpriteParticles(). Null until wired by the caller.
+   * Implements: desk-smasher-d6e — star/magic sprite particles on mouse movement.
+   */
+  private _spriteParticles: SpriteParticles | null = null;
+
+  /** Counts sparkle spawns; every 3rd sparkle emits one sprite particle. */
+  private _spriteCounter = 0;
 
   // BUG-006/BUG-007 fix: cache canvas bounds so mousemove does not trigger
   // a layout read (getBoundingClientRect) on every event.
@@ -161,6 +172,19 @@ export class MouseTrail {
       p.gfx.scale.x *= 0.97;
       p.gfx.scale.y *= 0.97;
     }
+  }
+
+  /**
+   * Wires a SpriteParticles instance so the trail can emit supplemental
+   * star/circle/magic sprite particles alongside the Graphics sparkles.
+   *
+   * Call once after both MouseTrail and SpriteParticles are constructed.
+   * Implements: desk-smasher-d6e — sprite particle mouse trail.
+   *
+   * @param sp - The SpriteParticles system to emit into.
+   */
+  setSpriteParticles(sp: SpriteParticles): void {
+    this._spriteParticles = sp;
   }
 
   /**
@@ -257,5 +281,14 @@ export class MouseTrail {
       vx: (Math.random() - 0.5) * 30,
       vy: (Math.random() - 0.5) * 30,
     });
+
+    // Supplemental sprite particle every 3rd Graphics sparkle.
+    // Implements: desk-smasher-d6e — star/circle/magic sprite trail.
+    this._spriteCounter++;
+    if (this._spriteParticles && this._spriteCounter % 3 === 0) {
+      const sets = ['star', 'circle', 'magic'] as const;
+      const set = sets[Math.floor(Math.random() * sets.length)];
+      this._spriteParticles.emit(x, y, 1, set, { speed: 60, gravity: 80, life: 0.5 });
+    }
   }
 }

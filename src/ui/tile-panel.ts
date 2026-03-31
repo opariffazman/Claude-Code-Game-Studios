@@ -8,7 +8,7 @@
  * Adventure panels (animal-farm theme): uses Kenney adventure pack 64×64 panels
  * with ~8px border insets. Grid-paper interior is inset from the panel edges.
  */
-import { Assets, Container, NineSliceSprite, Sprite, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, NineSliceSprite, Sprite, Texture } from 'pixi.js';
 
 export type PanelStyle = 'beige' | 'brown' | 'blue' | 'dark';
 
@@ -41,6 +41,10 @@ const CLOSE_BTN = 'assets/kenney/ui/adventure/close_red.png';
 const ADV_BANNER_MODERN  = 'assets/kenney/ui/adventure/banner_modern.png';
 const ADV_BANNER_HANGING = 'assets/kenney/ui/adventure/banner_hanging.png';
 
+/** Adventure checkbox sprites — used as tray status indicators in the taskbar. */
+export const ADV_CHECKBOX_CHECKED = 'assets/kenney/ui/adventure/checkbox_brown_checked.png';
+export const ADV_CHECKBOX_EMPTY   = 'assets/kenney/ui/adventure/checkbox_brown_empty.png';
+
 export class TilePanelBuilder {
   private _ready = false;
 
@@ -54,6 +58,8 @@ export class TilePanelBuilder {
       CLOSE_BTN,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
+      ADV_CHECKBOX_CHECKED,
+      ADV_CHECKBOX_EMPTY,
     ]);
     this._ready = true;
   }
@@ -126,6 +132,36 @@ export class TilePanelBuilder {
         grid.position.set(8, 32);
         c.addChild(grid);
       }
+    }
+
+    // Faux window content — text lines and a progress bar, adventure themes only.
+    if (theme && ADV_PANELS[theme]) {
+      const contentStartY = 65; // below title bar + grid paper margin
+      const contentX = 20;
+      const contentMaxW = w - 40;
+
+      const content = new Graphics();
+
+      // Fake text lines — varied widths for a lived-in document look.
+      for (let line = 0; line < 4; line++) {
+        const lineW = contentMaxW * (0.4 + Math.random() * 0.5);
+        content.rect(contentX, contentStartY + line * 18, lineW, 8)
+          .fill({ color: 0x333333, alpha: 0.15 });
+      }
+
+      // Fake progress bar — dark frame with a green fill at random progress 30–90%.
+      const barY = contentStartY + 4 * 18 + 10;
+      const barW = contentMaxW * 0.7;
+      const barH = 10;
+      // Background frame
+      content.rect(contentX, barY, barW, barH)
+        .fill({ color: 0x000000, alpha: 0.1 });
+      // Progress fill
+      const progress = 0.3 + Math.random() * 0.6;
+      content.rect(contentX + 1, barY + 1, (barW - 2) * progress, barH - 2)
+        .fill({ color: 0x44aa44, alpha: 0.6 });
+
+      c.addChild(content);
     }
 
     // Close button — scaled proportionally to window size, top-right corner.

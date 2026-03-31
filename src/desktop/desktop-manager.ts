@@ -20,6 +20,7 @@
 import { Assets, Container, Graphics, NineSliceSprite, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
 import type { TilePanelBuilder, PanelStyle } from '../ui/tile-panel';
+import { ADV_CHECKBOX_CHECKED, ADV_CHECKBOX_EMPTY } from '../ui/tile-panel';
 import { DESKTOP_CONFIG, LAYOUT_CONFIG } from '../config';
 import {
   WALLPAPER_PALETTES, ICON_LABELS, WINDOW_TITLES, STICKY_TEXTS, NOTIF_TEXTS,
@@ -686,6 +687,38 @@ export class DesktopManager {
       const clock = new Text({ text: '12:00', style: clockStyle });
       clock.position.set(this.screenW - clockRightPad, clockY);
       c.addChild(clock);
+
+      // Tray icons — 3 small status indicators left of the clock.
+      // Attempt to use adventure checkbox sprites; fall back to Graphics circles.
+      const trayIconSize = Math.round(taskbarH * 0.5);
+      const trayStartX = this.screenW - clockRightPad - trayIconSize * 3 - 24;
+      const trayY = Math.round((taskbarH - trayIconSize) / 2);
+      const traySpacing = trayIconSize + 6;
+
+      const checkedTex = Assets.get<Texture>(ADV_CHECKBOX_CHECKED);
+      const emptyTex   = Assets.get<Texture>(ADV_CHECKBOX_EMPTY);
+
+      // Pattern: checked, empty, checked — faux system indicators.
+      const trayPattern = [true, false, true];
+      for (let i = 0; i < trayPattern.length; i++) {
+        const useChecked = trayPattern[i];
+        const tex = useChecked ? checkedTex : emptyTex;
+        if (tex) {
+          const icon = new Sprite(tex);
+          icon.width  = trayIconSize;
+          icon.height = trayIconSize;
+          icon.position.set(trayStartX + i * traySpacing, trayY);
+          c.addChild(icon);
+        } else {
+          // Fallback: coloured circle indicator.
+          const color = i === 0 ? 0x44cc44 : i === 1 ? 0x4488ff : 0xffaa00;
+          const dot = new Graphics()
+            .circle(0, 0, trayIconSize / 2)
+            .fill(color);
+          dot.position.set(trayStartX + i * traySpacing + trayIconSize / 2, taskbarH / 2);
+          c.addChild(dot);
+        }
+      }
     } else {
       // No tile builder — delegate to element factory.
       const result = this.factory.createTaskbar(this.screenW, taskbarH);
