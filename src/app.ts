@@ -353,8 +353,10 @@ export class DeskSmasherApp {
       }
     } else {
       // Empty space — crack wallpaper + tool AoE
+      // Sprite scorch particles replace Graphics circles for mouse hits.
+      // Implements: desk-smasher-kz8 — replace Graphics particles with sprites for mouse.
       this.desktop.crackWallpaper(x, y, this.mouseTools.currentTool);
-      this.particles.emit(x, y, 12, { speed: 150, gravity: 200, life: 0.5 });
+      this.spriteParticles.emit(x, y, 5, 'scorch');
       this.audioManager.play('crack');
       const toolResult = this.mouseTools.applyTool(x, y, null, this.desktop.elements);
       for (const aoeTarget of toolResult.aoeTargets) {
@@ -424,12 +426,14 @@ export class DeskSmasherApp {
     const cx = element.x + element.width / 2;
     const cy = element.y + element.height / 2;
 
+    // Resolve tool name once — used for both effect selection and particle sets.
+    const toolName = this.mouseTools.currentTool;
+
     if (element.health <= 0) {
       element.health = 0;
       element.destroyed = true;
 
       // Use tool-specific destruction effect for consistent visual per tool
-      const toolName = this.mouseTools.currentTool;
       const effectName = DeskSmasherApp.TOOL_EFFECT_MAP[toolName] || 'shatter';
       const effect = this.destructionRegistry.get(effectName)
         ?? this.destructionRegistry.getRandom();
