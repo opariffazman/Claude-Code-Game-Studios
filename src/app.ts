@@ -174,6 +174,7 @@ export class DeskSmasherApp {
     // Implements: health-dashboard.md — centralized health display.
     // Implements: desk-smasher-v37 — horizontal bars in taskbar.
     this.healthDashboard = new HealthDashboard(uiLayer, this.app.screen.width, this.app.screen.height);
+    await this.healthDashboard.preload();
     {
       const { w, h } = this.desktop.taskbarDimensions;
       this.healthDashboard.build(
