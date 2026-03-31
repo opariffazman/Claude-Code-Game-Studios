@@ -93,7 +93,7 @@ export class DeskSmasherApp {
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
   /** CombatLog instance used to display milestone entries inside the milestone banner element. */
-  private milestoneLog: CombatLog | null = null;
+  private _milestoneLogs: CombatLog[] = [];
   private milestoneTracker!: MilestoneTracker;
   private achievementToast!: AchievementToast;
   /** Cached content dimensions for the Tool Card window — needed by setTool() re-renders. */
@@ -232,7 +232,7 @@ export class DeskSmasherApp {
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
       this.combatLog?.addEntry('\u2605', label, 'milestone');
-      this.milestoneLog?.addEntry('\u2605', label, 'milestone');
+      for (const ml of this._milestoneLogs) ml.addEntry('\u2605', label, 'milestone');
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
@@ -835,19 +835,48 @@ export class DeskSmasherApp {
       );
     }
 
-    // -- Milestone banner (top-right, horizontal, type='milestone' for blue pips)
+    // -- 3 Milestone banners (top-right, stacked vertically, type='milestone' for blue pips)
     const mileW = Math.round(sw * 0.18);
-    const mileH = Math.round(sh * 0.06);
+    const mileH = Math.round(sh * 0.055);
     const mileX = Math.round(sw * 0.80);
-    const mileY = Math.round(sh * 0.02);
+    const mileGap = 8;
     const mlContentW = mileW - 30;
-    const mlContentH = mileH - 15;
-    this.milestoneLog = new CombatLog();
-    const mlResult = this.desktop.createMilestoneBanner(
-      'Milestones', mileX, mileY, mileW, mileH,
-    );
-    if (mlResult) {
-      this.milestoneLog.build(mlResult.container, 5, 5, mlContentW, mlContentH);
+    const mlContentH = mileH - 12;
+
+    // Banner 1: Destruction milestones
+    const ml1Y = Math.round(sh * 0.02);
+    const ml1 = this.desktop.createMilestoneBanner('Smash Goals', mileX, ml1Y, mileW, mileH);
+    if (ml1) {
+      const log1 = new CombatLog();
+      log1.build(ml1.container, 5, 3, mlContentW, mlContentH);
+      log1.addEntry('', '10 Hits', 'milestone');
+      log1.addEntry('', '50 Hit Combo', 'milestone');
+      log1.addEntry('', '100 Hit Rampage', 'milestone');
+      this._milestoneLogs.push(log1);
+    }
+
+    // Banner 2: Animal milestones
+    const ml2Y = ml1Y + mileH + mileGap;
+    const ml2 = this.desktop.createMilestoneBanner('Animal Hunt', mileX, ml2Y, mileW, mileH);
+    if (ml2) {
+      const log2 = new CombatLog();
+      log2.build(ml2.container, 5, 3, mlContentW, mlContentH);
+      log2.addEntry('', 'First Animal Down', 'milestone');
+      log2.addEntry('', '10 Animals Smashed', 'milestone');
+      log2.addEntry('', 'Window Breaker', 'milestone');
+      this._milestoneLogs.push(log2);
+    }
+
+    // Banner 3: Chaos milestones
+    const ml3Y = ml2Y + mileH + mileGap;
+    const ml3 = this.desktop.createMilestoneBanner('Chaos Mode', mileX, ml3Y, mileW, mileH);
+    if (ml3) {
+      const log3 = new CombatLog();
+      log3.build(ml3.container, 5, 3, mlContentW, mlContentH);
+      log3.addEntry('', 'Getting Crazy (★★)', 'milestone');
+      log3.addEntry('', 'MAX CHAOS (★★★★★)', 'milestone');
+      log3.addEntry('', 'Total Destruction', 'milestone');
+      this._milestoneLogs.push(log3);
     }
 
   }
