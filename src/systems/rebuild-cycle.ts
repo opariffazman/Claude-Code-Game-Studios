@@ -131,9 +131,11 @@ export class RebuildCycle {
   // ---------------------------------------------------------------------------
 
   private updateIdle(): void {
-    if (this.desktopManager.allDestroyed) {
-      this.enterState('celebrating');
-    }
+    // Disabled — no auto-rebuild. Single session, one theme.
+    // Re-enable when theme cycling is implemented.
+    // if (this.desktopManager.allDestroyed) {
+    //   this.enterState('celebrating');
+    // }
   }
 
   private updateCelebrating(dt: number): void {
