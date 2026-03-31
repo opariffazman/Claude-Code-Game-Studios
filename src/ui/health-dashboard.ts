@@ -7,43 +7,25 @@
  *   Blue   = alerts (notification elements)
  *
  * Bars sit between the Start button and the tray icons, filling proportionally
- * left-to-right as health depletes. Implemented as NineSliceSprite using pre-rotated
- * horizontal Kenney adventure SVGs (32×16):
- *   progress_transparent_horizontal.svg — background track
- *   progress_green/red/blue_horizontal.svg — colored fills
- *
- * NineSlice preserves the rounded left/right caps (leftWidth/rightWidth = 10px)
- * while stretching the middle horizontally. Fill width shrinks left-to-right as
- * health depletes — no rotation or position adjustment needed.
+ * left-to-right as health depletes. Implemented as PixiJS Graphics roundRects
+ * for reliable visibility against the dark taskbar: a light-grey semi-transparent
+ * track behind a solid bright-colored fill.
  *
  * Implements: health-dashboard.md — centralized health display, taskbar-embedded layout.
  * Spec: desk-smasher-v37 — horizontal bars in taskbar replacing right-edge dashboard.
- * Spec: desk-smasher-9ne — replace Graphics bars with rotated Kenney SVG sprites.
  */
-import { Assets, Container, NineSliceSprite, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { DesktopElement, ElementType } from '../types';
 
 // ---------------------------------------------------------------------------
-// SVG asset paths — pre-rotated horizontal variants (32×16)
+// Bar colors — bright and saturated for visibility on dark taskbar
 // ---------------------------------------------------------------------------
 
-const SVG_DIR = 'assets/kenney/ui/adventure/svg';
-
-const BAR_BG_PATH = `${SVG_DIR}/progress_transparent_horizontal.svg`;
-
-const BAR_FILL_PATHS: Record<string, string> = {
-  animals:    `${SVG_DIR}/progress_green_horizontal.svg`,
-  structures: `${SVG_DIR}/progress_red_horizontal.svg`,
-  alerts:     `${SVG_DIR}/progress_blue_horizontal.svg`,
+const BAR_COLORS: Record<string, number> = {
+  animals:    0x44dd44, // bright green
+  structures: 0xdd4444, // bright red
+  alerts:     0x4499dd, // bright blue
 };
-
-/**
- * Left/right cap width in TEXTURE pixels for NineSliceSprite.
- * The horizontal SVGs are 32×16 (SVG units). At resolution 4 the rasterised
- * texture is 128×64. The capsule caps occupy 8 SVG px = 32 texture px each.
- * Using plain Sprites for now (NineSlice re-enabled once render is confirmed).
- */
-const BAR_CAP_W = 32;
 
 // ---------------------------------------------------------------------------
 // Layout tuning knobs
@@ -57,6 +39,8 @@ const BAR_AREA_RIGHT_RESERVE = 120;
 const BAR_GAP = 6;
 /** Bar height as a fraction of taskbar height. */
 const BAR_HEIGHT_RATIO = 0.5;
+/** Corner radius for the rounded rect bars. */
+const BAR_RADIUS = 4;
 /** Minimum fill width in pixels — keeps bar visible near zero health. */
 const MIN_FILL_W = 6;
 
@@ -84,10 +68,8 @@ function getCategory(type: ElementType): Category | null {
 interface BarState {
   /** Category this bar tracks. */
   category: Category;
-  /** Background track nine-slice (progress_transparent_horizontal). */
-  bgSprite: NineSliceSprite | Sprite;
-  /** Colored fill nine-slice — width shrinks as health depletes. */
-  fillSprite: NineSliceSprite | Sprite;
+  /** Colored fill Graphics — redrawn at new width on damage. */
+  fillRect: Graphics;
   /** X origin of this bar in taskbar-local coordinates. */
   barX: number;
   /** Y origin of this bar in taskbar-local coordinates. */
@@ -142,20 +124,11 @@ export class HealthDashboard {
   // ---------------------------------------------------------------------------
 
   /**
-   * Preload the horizontal progress-bar SVGs at resolution 4 for crisp rendering.
-   * Must be called (and awaited) before build().
+   * No-op — Graphics bars require no asset preloading.
+   * Kept for API compatibility so app.ts call sites are unchanged.
    */
   async preload(): Promise<void> {
-    const paths = [BAR_BG_PATH, ...Object.values(BAR_FILL_PATHS)];
-    for (const path of paths) {
-      Assets.add({ alias: path, src: path, data: { resolution: 4 } });
-    }
-    try {
-      await Assets.load(paths);
-      console.log('[HealthDashboard] preloaded', paths.length, 'SVGs:', paths);
-    } catch (e) {
-      console.warn('[HealthDashboard] preload FAILED:', e);
-    }
+    // Graphics-based bars need no SVG assets.
   }
 
   /**
@@ -213,50 +186,23 @@ export class HealthDashboard {
     this.dashContainer.label = 'health-dashboard';
     this._taskbarContainer.addChild(this.dashContainer);
 
-    const bgTex = Assets.get<Texture>(BAR_BG_PATH);
-    console.log(
-      '[HealthDashboard] build() bgTex:', bgTex ? 'loaded' : 'NULL',
-      'elements:', elements.length,
-      'taskbar:', !!this._taskbarContainer,
-      'tbW:', tbW, 'tbH:', tbH,
-      'categories:', activeCategories,
-    );
-
     let xCursor = BAR_AREA_START_X;
     for (const cat of activeCategories) {
       const barX = xCursor;
 
-      // Background track — plain Sprite stretches the capsule texture to fill bar area.
-      // TODO(NineSlice): swap back to NineSliceSprite with BAR_CAP_W=32 once render confirmed.
-      let bgSprite: NineSliceSprite | Sprite;
-      if (bgTex) {
-        bgSprite = new Sprite(bgTex);
-        bgSprite.position.set(barX, barY);
-        bgSprite.width  = singleBarW;
-        bgSprite.height = barH;
-        bgSprite.label  = `health-bg-${cat}`;
-        this.dashContainer.addChild(bgSprite);
-        console.log(`[HealthDashboard] added bg sprite for ${cat} at (${barX},${barY}) ${singleBarW}x${barH}`);
-      } else {
-        // Fallback: invisible placeholder so BarState always has a valid reference.
-        bgSprite = new Sprite();
-      }
+      // Background track — light grey semi-transparent, always visible on dark taskbar.
+      const bgRect = new Graphics()
+        .roundRect(barX, barY, singleBarW, barH, BAR_RADIUS)
+        .fill({ color: 0xffffff, alpha: 0.25 });
+      bgRect.label = `health-bg-${cat}`;
+      this.dashContainer.addChild(bgRect);
 
-      // Colored fill — starts full width, shrinks right as health depletes.
-      const fillPath = BAR_FILL_PATHS[cat];
-      const fillTex  = Assets.get<Texture>(fillPath);
-      console.log(`[HealthDashboard] fillTex for ${cat}:`, fillTex ? 'loaded' : 'NULL');
-      let fillSprite: NineSliceSprite | Sprite;
-      if (fillTex) {
-        fillSprite = new Sprite(fillTex);
-        fillSprite.position.set(barX, barY);
-        fillSprite.width  = singleBarW;
-        fillSprite.height = barH;
-        fillSprite.label  = `health-fill-${cat}`;
-        this.dashContainer.addChild(fillSprite);
-      } else {
-        fillSprite = new Sprite();
-      }
+      // Colored fill — solid bright color, starts at full width.
+      const fillRect = new Graphics()
+        .roundRect(barX, barY, singleBarW, barH, BAR_RADIUS)
+        .fill(BAR_COLORS[cat]);
+      fillRect.label = `health-fill-${cat}`;
+      this.dashContainer.addChild(fillRect);
 
       const maxHealthSum = elements
         .filter(e => getCategory(e.type) === cat)
@@ -264,8 +210,7 @@ export class HealthDashboard {
 
       this.bars.push({
         category: cat,
-        bgSprite,
-        fillSprite,
+        fillRect,
         barX,
         barY,
         maxW:         singleBarW,
@@ -297,8 +242,12 @@ export class HealthDashboard {
       }
 
       const ratio = bar.maxHealthSum > 0 ? currentHealthSum / bar.maxHealthSum : 0;
-      // Horizontal bar — shrink fill width left-to-right as health depletes.
-      bar.fillSprite.width = Math.max(MIN_FILL_W, bar.maxW * ratio);
+      const newW = Math.max(MIN_FILL_W, bar.maxW * ratio);
+
+      bar.fillRect
+        .clear()
+        .roundRect(bar.barX, bar.barY, newW, bar.barH, BAR_RADIUS)
+        .fill(BAR_COLORS[bar.category]);
     }
   }
 
