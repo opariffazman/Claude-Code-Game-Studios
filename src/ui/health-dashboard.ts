@@ -202,7 +202,9 @@ export class HealthDashboard {
       bg.position.set(x, topY);
       this.container.addChild(bg);
 
-      // Colored fill — starts at full height.
+      // Colored fill — starts at full height, shrinks as health depletes.
+      // Uses the plain fill SVG (no border) so depletion is visible.
+      // The background track (transparent) acts as the frame.
       const fill = new NineSliceSprite({
         texture:      fillTex,
         leftWidth:    0,
@@ -215,18 +217,10 @@ export class HealthDashboard {
       fill.position.set(x, topY);
       this.container.addChild(fill);
 
-      // Border frame on top of fill.
-      const border = new NineSliceSprite({
-        texture:      borderTex,
-        leftWidth:    0,
-        topHeight:    CAP_INSET,
-        rightWidth:   0,
-        bottomHeight: CAP_INSET,
-        width:        DASHBOARD_WIDTH_PX,
-        height:       barH,
-      });
-      border.position.set(x, topY);
-      this.container.addChild(border);
+      // No separate border sprite — the transparent bg IS the frame.
+      // The _border SVGs contain the same fill color + outline, which
+      // hides the depletion. Just bg (empty track) + fill (colored) is correct.
+      const border = bg; // alias for BarState — bg acts as both track and frame
 
       // Compute initial maxHealth sum for this category.
       const maxHealthSum = elements
