@@ -25,7 +25,7 @@ export class MilestoneBannerText {
     this.containerH = h;
     const style = new TextStyle({
       fontSize: 13,
-      fill: 0xffffff,
+      fill: 0x333333,
       fontFamily: 'sans-serif',
       fontWeight: 'bold',
       align: 'center',

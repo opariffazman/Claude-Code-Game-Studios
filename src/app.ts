@@ -205,7 +205,7 @@ export class DeskSmasherApp {
       // celebration particles are visible before the desktop transitions away.
       () => {
         this.celebration.fire(this.app!.screen.width, this.app!.screen.height);
-        this.achievementToast?.show('TOTAL DESTRUCTION!');
+        // Toast handled by MilestoneTracker callback — no duplicate here
         this.milestoneTracker.recordFullClear();
         // Delay rebuild 1.5 s so the celebration burst is visible before the
         // RebuildCycle fade-to-white transition overwrites the particles.

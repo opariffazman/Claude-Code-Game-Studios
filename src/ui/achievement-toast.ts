@@ -12,7 +12,7 @@
  * ```
  */
 import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
-import { ADV_BANNER_MODERN } from './tile-panel';
+import { ADV_BANNER_CLASSIC_CURTAIN } from './tile-panel';
 
 const TOAST_DURATION_MS = 3000;
 const TOAST_H = 40;
@@ -48,7 +48,7 @@ export class AchievementToast {
 
     // Adventure banner background — uses the preloaded banner_modern SVG sprite.
     // Falls back to a gold Graphics roundRect if the texture is not yet loaded.
-    const bannerTex = Assets.get<Texture>(ADV_BANNER_MODERN);
+    const bannerTex = Assets.get<Texture>(ADV_BANNER_CLASSIC_CURTAIN);
     if (bannerTex) {
       const bg = new Sprite(bannerTex);
       bg.width = w;
