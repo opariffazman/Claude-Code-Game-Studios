@@ -67,6 +67,16 @@ export class DesktopManager {
   private _buildH = 0;
   private _wallpaperColor: number = WALLPAPER_PALETTES[0].bg;
 
+  /**
+   * Session content — set once per buildDesktop() call, preserved across resize rebuilds.
+   * This allows _rebuildLayout() to regenerate the same content at new viewport dimensions
+   * without re-randomising what is shown.
+   */
+  private _currentPalette: WallpaperPalette = WALLPAPER_PALETTES[0];
+  private _sessionIconCount = 0;
+  private _sessionWindowCount = 0;
+  private _sessionNotifCount = 0;
+
   /** Optional ThemeLoader — when set, sprite icons are used instead of Graphics icons. */
   private _themeLoader: ThemeLoader | null = null;
 
@@ -473,17 +483,63 @@ export class DesktopManager {
     this.screenW = w;
     this.screenH = h;
 
-    // Scale the entire desktop container uniformly so no elements go off-screen.
+    // Reset container transform — PixiJS resizeTo:window handles canvas scaling.
+    // Applying our own scale on top of that double-scales and produces wrong results.
+    // Instead, rebuild the layout at the new viewport dimensions using the same
+    // session content (same theme, same counts) so nothing re-randomises.
     // Implements: desk-smasher-0p7 — resize must not randomise or stretch the desktop.
-    if (this._buildW > 0 && this._buildH > 0) {
-      const scaleX = w / this._buildW;
-      const scaleY = h / this._buildH;
-      const uniformScale = Math.min(scaleX, scaleY);
-      this.container.scale.set(uniformScale);
-      // Centre horizontally when the viewport is wider than the original aspect ratio.
-      this.container.x = (w - this._buildW * uniformScale) / 2;
-      this.container.y = 0; // top-aligned
+    this.container.scale.set(1);
+    this.container.position.set(0, 0);
+    this._rebuildLayout();
+  }
+
+  /**
+   * Rebuilds the visual layout at the current screenW/screenH using the saved
+   * session content (same palette, same element counts, same theme).
+   *
+   * Called by resize() so the desktop fills the new viewport without re-randomising
+   * what is shown. PixiJS resizeTo:window has already resized the canvas; this method
+   * only repositions and redraws the PixiJS display tree.
+   *
+   * Does NOT call buildDesktop() — that would re-randomise content. Instead it
+   * directly invokes the individual build methods with the saved session values.
+   */
+  private _rebuildLayout(): void {
+    // Clear all visual elements — remove from display tree and drop references.
+    this.container.removeChildren();
+    this._elements = [];
+    this.containers = [];
+    this._damageMarks = [];
+    this.factory.resetIconCount();
+
+    // Reset icon shuffle so sprites are re-distributed the same way as at build time.
+    this._themeLoader?.resetShuffle();
+
+    // Rebuild wallpaper and chrome at new dimensions.
+    this.buildWallpaper(this._currentPalette);
+    this.buildTaskbar();
+
+    // Rebuild content using the session counts (same as the original build).
+    this.buildIcons(this._sessionIconCount || randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX));
+    this.buildWindows(this._sessionWindowCount || randInt(2, 3));
+    this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
+
+    // Decorative hanging banner — same logic as buildDesktop().
+    const hangingTex = Assets.get<Texture>('assets/kenney/ui/adventure/banner_hanging.png');
+    if (hangingTex) {
+      const banner = new Sprite(hangingTex);
+      banner.anchor.set(0.5, 0);
+      const bannerScale = this.screenW / 1920;
+      banner.scale.set(bannerScale * 0.8);
+      banner.position.set(this.screenW / 2, 0);
+      this.container.addChild(banner);
     }
+
+    // Re-snapshot build dimensions and health totals.
+    this._buildW = this.screenW;
+    this._buildH = this.screenH;
+    this._totalHealth = this._elements.reduce((sum, e) => sum + e.maxHealth, 0);
+    this._currentHealth = this._totalHealth;
   }
 
   /**
@@ -533,18 +589,25 @@ export class DesktopManager {
     // Reset icon shuffle so each new desktop gets unique icons in a different order.
     this._themeLoader?.resetShuffle();
 
+    // Randomise content counts and save them so _rebuildLayout() can reproduce the
+    // same content at new viewport dimensions without re-randomising.
+    this._currentPalette = palette;
+    this._sessionIconCount = randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX);
+    this._sessionWindowCount = randInt(2, 3);
+    this._sessionNotifCount = randInt(2, 3);
+
     this._wallpaperColor = palette.bg;
     this.buildWallpaper(palette);
     this.buildTaskbar();
     // Implements: desktop-layout.md §2 — 8-12 icons from theme pool (not all frames).
-    this.buildIcons(randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX));
+    this.buildIcons(this._sessionIconCount);
     // Implements: desktop-layout.md §3 — 2-3 windows, cascade placement.
-    this.buildWindows(randInt(2, 3));
+    this.buildWindows(this._sessionWindowCount);
     // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
     // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
     // desk-smasher-reu: notification banners using adventure banner_modern sprite.
-    this.buildNotifications(randInt(2, 3));
+    this.buildNotifications(this._sessionNotifCount);
 
     // desk-smasher-621: decorative hanging banner at top-center.
     const hangingTex = Assets.get<Texture>('assets/kenney/ui/adventure/banner_hanging.png');
