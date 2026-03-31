@@ -289,6 +289,20 @@ export class DeskSmasherApp {
     // Create functional windows AFTER mouseTools so ToolCard/ToolBag can read currentTool.
     this._createFunctionalWindows();
 
+    // Rebuild health dashboard AFTER functional windows so 'window' and
+    // 'notification' elements created by _createFunctionalWindows() are
+    // included in the pip group counts (red + blue pips).
+    // Implements: desk-smasher-3eb — all three pip categories visible on start.
+    {
+      const { w, h } = this.desktop.taskbarDimensions;
+      this.healthDashboard.build(
+        this.desktop.elements,
+        this.desktop.taskbarContainer ?? uiLayer,
+        w,
+        h,
+      );
+    }
+
     // 13. Rebuild cycle — monitors destruction and drives animated theme transitions.
     //     Overlay is added to the stage so it renders above all desktop content.
     this.rebuildCycle = new RebuildCycle(
@@ -316,19 +330,10 @@ export class DeskSmasherApp {
           const newCount = this.desktop.elements.filter(e => e.type !== 'taskbar').length;
           this.respawnManager.setTotalDamageable(newCount);
         }
-        // Reset dashboard to full health for the new desktop.
-        // Implements: health-dashboard.md — bars reset to 100% on desktop rebuild.
-        // Implements: desk-smasher-v37 — re-wire to new taskbar container after rebuild.
+        // Re-wire chaos stars to the new taskbar container after rebuild.
+        // Implements: desk-smasher-rq8 — stars survive desktop rebuilds.
         {
           const { w, h } = this.desktop.taskbarDimensions;
-          this.healthDashboard.build(
-            this.desktop.elements,
-            this.desktop.taskbarContainer ?? uiLayer,
-            w,
-            h,
-          );
-          // Re-wire chaos stars to the new taskbar container after rebuild.
-          // Implements: desk-smasher-rq8 — stars survive desktop rebuilds.
           const starX = w - 90 - 5 * (18 + 4);
           const starY = Math.round((h - 18) / 2);
           this.chaosStars.build(this.desktop.taskbarContainer ?? uiLayer, starX, starY);
@@ -337,6 +342,18 @@ export class DeskSmasherApp {
         // Previous CombatLog/ToolCard/ToolBag instances are discarded;
         // createFunctionalWindow() registers new elements in the desktop's element list.
         this._createFunctionalWindows();
+        // Reset dashboard AFTER functional windows so all element types
+        // (window + notification) are counted in the pip groups.
+        // Implements: desk-smasher-3eb — all three pip categories visible after rebuild.
+        {
+          const { w, h } = this.desktop.taskbarDimensions;
+          this.healthDashboard.build(
+            this.desktop.elements,
+            this.desktop.taskbarContainer ?? uiLayer,
+            w,
+            h,
+          );
+        }
       },
       this.safetyLimiter,
     );
@@ -729,15 +746,18 @@ export class DeskSmasherApp {
     const zoneW = zone.w * sw;
     const zoneH = zone.h * sh;
 
-    // Four windows tiled in a row across the WINDOW_ZONE:
-    // Combat Log (left) | Tool Card (center) | Tool Bag (center) | Milestones (right)
+    // Four windows arranged in a 2x2 grid inside WINDOW_ZONE:
+    //   [Combat Log]  [Tool Card]     (top row)
+    //   [Tool Bag]    [Milestones]    (bottom row)
+    //
     // desk-smasher-c3g: all windows are uniform squares.
-    // desk-smasher-53s: Milestones placed in the 3rd column of WINDOW_ZONE.
+    // desk-smasher-53s: Milestones in bottom-right cell, always within zone bounds.
+    // desk-smasher-3eb: 2x2 avoids overflow on 1280px-wide viewports where
+    //   4 columns × squareSize exceed WINDOW_ZONE width (704 px).
     const gap = 15;
-    const thirdW = (zoneW - gap * 3) / 4;
-
-    // desk-smasher-c3g: uniform square size across all four panels.
-    const squareSize = Math.round(Math.min(thirdW, zoneH * 0.6));
+    const cellW = (zoneW - gap) / 2;
+    const cellH = (zoneH - gap) / 2;
+    const squareSize = Math.round(Math.min(cellW, cellH) * 0.9);
 
     const logW = squareSize;
     const logH = squareSize;
@@ -746,20 +766,18 @@ export class DeskSmasherApp {
 
     const cardW = squareSize;
     const cardH = squareSize;
-    const cardX = Math.round(zoneX + squareSize + gap);
+    const cardX = Math.round(zoneX + cellW + gap);
     const cardY = Math.round(zoneY);
 
     const bagW = squareSize;
     const bagH = squareSize;
-    const bagX = Math.round(zoneX + (squareSize + gap) * 2);
-    const bagY = Math.round(zoneY);
+    const bagX = Math.round(zoneX);
+    const bagY = Math.round(zoneY + cellH + gap);
 
-    // Milestone panel: 4th column inside WINDOW_ZONE, same square size.
-    // desk-smasher-53s: was previously positioned outside the zone and may not have appeared.
     const mlW = squareSize;
     const mlH = squareSize;
-    const mlX = Math.round(zoneX + (squareSize + gap) * 3);
-    const mlY = Math.round(zoneY);
+    const mlX = Math.round(zoneX + cellW + gap);
+    const mlY = Math.round(zoneY + cellH + gap);
 
     // -- Combat Log (left column)
     this.combatLog = new CombatLog();
