@@ -48,10 +48,10 @@ import { MouseTrail } from './vfx/mouse-trail';
 import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
-import { ToolIndicator } from './ui/tool-indicator';
 import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
 import { HealthDashboard } from './ui/health-dashboard';
 import { ChaosStars } from './ui/chaos-stars';
+import { AdventureClock } from './ui/adventure-clock';
 import { RespawnManager } from './systems/respawn-manager';
 import { CombatLog } from './ui/combat-log';
 import { ToolCard } from './ui/tool-card';
@@ -85,10 +85,10 @@ export class DeskSmasherApp {
   private themeLoader!: ThemeLoader;
   private themeSystem!: ThemeSystem;
   private rebuildCycle!: RebuildCycle;
-  private toolIndicator!: ToolIndicator;
   private tilePanelBuilder!: TilePanelBuilder;
   private healthDashboard!: HealthDashboard;
   private chaosStars!: ChaosStars;
+  private adventureClock!: AdventureClock;
   private respawnManager!: RespawnManager;
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
@@ -279,6 +279,10 @@ export class DeskSmasherApp {
       this.chaosStars.build(this.desktop.taskbarContainer ?? uiLayer, starX, starY);
     }
 
+    // Adventure Clock — circular minimap-style clock widget, bottom-left above taskbar.
+    await AdventureClock.preload();
+    this.adventureClock = new AdventureClock(uiLayer, this.app.screen.width, this.app.screen.height);
+
     // 12. Sprint 3 systems (in dependency order)
 
     // Mouse trail sits between desktop and particles in z-order; attaches to stage
@@ -298,9 +302,6 @@ export class DeskSmasherApp {
 
     // Mouse tools — lives in uiLayer so the cursor indicator is always on top
     this.mouseTools = new MouseToolManager(uiLayer, this.particles, this.audioManager);
-
-    // Tool indicator — bottom-right corner, above taskbar
-    this.toolIndicator = new ToolIndicator(uiLayer, this.app.screen.width, this.app.screen.height);
 
     // Create functional windows AFTER mouseTools so ToolCard/ToolBag can read currentTool.
     this._createFunctionalWindows();
@@ -426,7 +427,6 @@ export class DeskSmasherApp {
     this.inputManager.onRightClick((_x, _y) => {
       if (this.rebuildCycle.isTransitioning) return;
       this.mouseTools.cycleTool();
-      this.toolIndicator.setTool(this.mouseTools.currentTool);
       this.audioManager.playToolSwitch();
       // Sync Tool Card and Tool Bag windows to the newly selected tool.
       const tool = this.mouseTools.currentTool as import('./types').MouseToolType;
@@ -461,9 +461,9 @@ export class DeskSmasherApp {
       this.mouseTrail.update(dt);
       this.chaosMeter.update();
       this.chaosStars.update(this.chaosMeter.level);
+      this.adventureClock.update();
       this.screenShake.update(this.app!.stage);
       this.rebuildCycle.update(dt);
-      this.toolIndicator.update(dt);
 
       fpsText.text = `FPS: ${Math.round(ticker.FPS)} | Particles: ${this.particles.activeCount + this.spriteParticles.activeCount} | Destroyed: ${Math.round(this.desktop.destructionProgress * 100)}% | Chaos: ${this.chaosMeter.level}`;
     });
@@ -907,7 +907,6 @@ export class DeskSmasherApp {
       this.resizeTimer = null;
       if (!this.app) return;
       this.desktop.resize(this.app.screen.width, this.app.screen.height);
-      this.toolIndicator.resize(this.app.screen.width, this.app.screen.height);
       // Re-wire to the new taskbar container (desktop.resize() recreates it).
       // Then snap fill widths to current health state.
       // Implements: desk-smasher-v37 — taskbar-embedded bars survive resize.
@@ -928,6 +927,7 @@ export class DeskSmasherApp {
           this.chaosStars.build(this.desktop.taskbarContainer, starX, starY);
         }
       }
+      this.adventureClock.resize(this.app.screen.width, this.app.screen.height);
       this.syncBackground();
     }, RESIZE_DEBOUNCE_MS);
   }

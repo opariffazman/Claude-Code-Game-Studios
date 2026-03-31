@@ -874,10 +874,6 @@ export class DesktopManager {
     // Derived proportional values
     const btnSize = Math.round(taskbarH * 0.833); // ~40px at 48px taskbar
     const btnPad = Math.round(taskbarH * 0.083);  // ~4px at 48px taskbar
-    const clockFontSize = Math.round(taskbarH * 0.292); // ~14px at 48px taskbar
-    const clockRightPad = Math.round(taskbarH * 1.25); // ~60px at 48px taskbar
-    const clockY = Math.round((taskbarH - clockFontSize) / 2);
-
     let c: Container;
     let gfx: Graphics | null = null;
 
@@ -925,12 +921,6 @@ export class DesktopManager {
           c.addChild(icon);
         }
       }
-
-      // Clock text — font size proportional to taskbarH.
-      const clockStyle = new TextStyle({ fontSize: clockFontSize, fill: 0xffffff, fontFamily: 'monospace' });
-      const clock = new Text({ text: '12:00', style: clockStyle });
-      clock.position.set(this.screenW - clockRightPad, clockY);
-      c.addChild(clock);
 
       // Tray icon area is reserved for ChaosStars — built and owned by app.ts.
       // Implements: desk-smasher-rq8 — chaos stars replace static checkbox tray icons.

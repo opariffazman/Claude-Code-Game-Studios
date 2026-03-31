@@ -308,11 +308,6 @@ export class ElementFactory {
       .fill(0x3366cc);
     container.addChild(startBtn);
 
-    const clockStyle = new TextStyle({ fontSize: 14, fill: 0xffffff, fontFamily: 'monospace' });
-    const clock = new Text({ text: '12:00', style: clockStyle });
-    clock.position.set(w - 60, 14);
-    container.addChild(clock);
-
     return { container, gfx };
   }
 
