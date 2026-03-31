@@ -52,6 +52,10 @@ import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
 import { HealthDashboard } from './ui/health-dashboard';
 import { ChaosStars } from './ui/chaos-stars';
 import { RespawnManager } from './systems/respawn-manager';
+import { CombatLog } from './ui/combat-log';
+import { ToolCard } from './ui/tool-card';
+import { ToolBag } from './ui/tool-bag';
+import { TOOL_STATS } from './mouse/tool-stats';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -80,6 +84,15 @@ export class DeskSmasherApp {
   private healthDashboard!: HealthDashboard;
   private chaosStars!: ChaosStars;
   private respawnManager!: RespawnManager;
+  private combatLog: CombatLog | null = null;
+  private toolCard: ToolCard | null = null;
+  private toolBag: ToolBag | null = null;
+  /** Cached pixel dimensions for the Tool Card window — needed by setTool() re-renders. */
+  private _toolCardW = 0;
+  private _toolCardH = 0;
+  /** Cached pixel dimensions for the Tool Bag window — needed by setTool() re-renders. */
+  private _toolBagW = 0;
+  private _toolBagH = 0;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -183,6 +196,10 @@ export class DeskSmasherApp {
       this.respawnManager.setTotalDamageable(damageableCount);
     }
 
+    // Create functional windows (Combat Log, Tool Card, Tool Bag) with live game data.
+    // Called after desktop + respawnManager are both ready so elements[] is populated.
+    this._createFunctionalWindows();
+
     // 10. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
 
@@ -284,6 +301,10 @@ export class DeskSmasherApp {
           const starY = Math.round((h - 18) / 2);
           this.chaosStars.build(this.desktop.taskbarContainer ?? uiLayer, starX, starY);
         }
+        // Re-create functional windows on the freshly built desktop.
+        // Previous CombatLog/ToolCard/ToolBag instances are discarded;
+        // createFunctionalWindow() registers new elements in the desktop's element list.
+        this._createFunctionalWindows();
       },
       this.safetyLimiter,
     );
@@ -342,6 +363,10 @@ export class DeskSmasherApp {
       this.mouseTools.cycleTool();
       this.toolIndicator.setTool(this.mouseTools.currentTool);
       this.audioManager.playToolSwitch();
+      // Sync Tool Card and Tool Bag windows to the newly selected tool.
+      const tool = this.mouseTools.currentTool as import('./types').MouseToolType;
+      this.toolCard?.setTool(tool, this._toolCardW, this._toolCardH - 28);
+      this.toolBag?.setTool(tool, this._toolBagW, this._toolBagH - 28);
     });
 
     // 18. Debounced resize — rebuild desktop when window dimensions settle
@@ -438,6 +463,8 @@ export class DeskSmasherApp {
       this.desktop.crackWallpaper(x, y, this.mouseTools.currentTool);
       this.spriteParticles.emit(x, y, 5, 'scorch');
       this.audioManager.play('crack');
+      // Combat Log entry — wallpaper crack hit.
+      this.combatLog?.addEntry(this.mouseTools.currentTool, 'wallpaper', 'wallpaper');
       const toolResult = this.mouseTools.applyTool(x, y, null, this.desktop.elements);
       for (const aoeTarget of toolResult.aoeTargets) {
         if (!aoeTarget.destroyed) this.hitElementToolAware(aoeTarget);
@@ -549,6 +576,8 @@ export class DeskSmasherApp {
       // Notify respawn system — schedules individual timer or triggers full-clear.
       // Implements: desk-smasher-3xi — respawn wired into destruction pipeline.
       this.respawnManager.onDestroyed(element);
+      // Combat Log entry — tool-aware mouse path.
+      this.combatLog?.addEntry(toolName, element.label ?? element.type, 'destroyed');
     } else {
       // Tool-consistent damage: always use the same damage effect (shake)
       // rather than random registry picks that look like cycling
@@ -565,6 +594,8 @@ export class DeskSmasherApp {
       // Update centralized health dashboard.
       // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
       this.healthDashboard.onDamage(this.desktop.elements);
+      // Combat Log entry — tool-aware mouse path.
+      this.combatLog?.addEntry(toolName, element.label ?? element.type, 'damage');
 
       // Damaged panel swap — when a window drops below 50% health, replace its
       // NineSliceSprite panel (child 0) with the cracked brown damaged variant.
@@ -628,6 +659,8 @@ export class DeskSmasherApp {
       // Notify respawn system — schedules individual timer or triggers full-clear.
       // Implements: desk-smasher-3xi — respawn wired into destruction pipeline.
       this.respawnManager.onDestroyed(element);
+      // Combat Log entry — keyboard path uses generic "key" tool label.
+      this.combatLog?.addEntry('key', element.label ?? element.type, 'destroyed');
     } else {
       const dmgEffect = this.damageRegistry.getRandom();
       dmgEffect(element, container, this.particles, this.audioManager);
@@ -637,9 +670,80 @@ export class DeskSmasherApp {
       // Update centralized health dashboard.
       // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
       this.healthDashboard.onDamage(this.desktop.elements);
+      // Combat Log entry — keyboard path uses generic "key" tool label.
+      this.combatLog?.addEntry('key', element.label ?? element.type, 'damage');
     }
 
     this.desktop.applyImpulse(element);
+  }
+
+  /**
+   * Creates the three functional overlay windows (Combat Log, Tool Card, Tool Bag)
+   * using percentage-based positions relative to the current canvas dimensions.
+   * Must be called after buildDesktop() and respawnManager are both ready.
+   * Safe to call again on desktop rebuild — the previous instances are discarded
+   * because createFunctionalWindow() registers new elements on the fresh desktop.
+   */
+  private _createFunctionalWindows(): void {
+    if (!this.app) return;
+    const sw = this.app.screen.width;
+    const sh = this.app.screen.height;
+
+    // -- Combat Log: x=55%, y=8%, w=18%, h=35%
+    const clX = Math.round(sw * 0.55);
+    const clY = Math.round(sh * 0.08);
+    const clW = Math.round(sw * 0.18);
+    const clH = Math.round(sh * 0.35);
+    this.combatLog = new CombatLog();
+    const clResult = this.desktop.createFunctionalWindow(
+      'Combat Log', clX, clY, clW, clH,
+      (newContainer) => {
+        this.combatLog!.build(newContainer, 0, 28, clW, clH - 28);
+      },
+    );
+    if (clResult) {
+      this.combatLog.build(clResult.container, 0, 28, clW, clH - 28);
+    }
+
+    // -- Tool Card: x=40%, y=10%, w=14%, h=25%
+    const tcX = Math.round(sw * 0.40);
+    const tcY = Math.round(sh * 0.10);
+    const tcW = Math.round(sw * 0.14);
+    const tcH = Math.round(sh * 0.25);
+    this._toolCardW = tcW;
+    this._toolCardH = tcH;
+    this.toolCard = new ToolCard();
+    const tcResult = this.desktop.createFunctionalWindow(
+      'Tool Card', tcX, tcY, tcW, tcH,
+      (newContainer) => {
+        this.toolCard!.build(newContainer, 0, 28, tcW, tcH - 28);
+        this.toolCard!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW, tcH - 28);
+      },
+    );
+    if (tcResult) {
+      this.toolCard.build(tcResult.container, 0, 28, tcW, tcH - 28);
+      this.toolCard.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tcW, tcH - 28);
+    }
+
+    // -- Tool Bag: x=35%, y=42%, w=22%, h=12%
+    const tbX = Math.round(sw * 0.35);
+    const tbY = Math.round(sh * 0.42);
+    const tbW = Math.round(sw * 0.22);
+    const tbH = Math.round(sh * 0.12);
+    this._toolBagW = tbW;
+    this._toolBagH = tbH;
+    this.toolBag = new ToolBag();
+    const tbResult = this.desktop.createFunctionalWindow(
+      'Tool Bag', tbX, tbY, tbW, tbH,
+      (newContainer) => {
+        this.toolBag!.build(newContainer, 0, 28, tbW, tbH - 28);
+        this.toolBag!.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW, tbH - 28);
+      },
+    );
+    if (tbResult) {
+      this.toolBag.build(tbResult.container, 0, 28, tbW, tbH - 28);
+      this.toolBag.setTool(this.mouseTools.currentTool as import('./types').MouseToolType, tbW, tbH - 28);
+    }
   }
 
   /**
