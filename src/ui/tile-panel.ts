@@ -200,6 +200,36 @@ export class TilePanelBuilder {
       this._buildWindowContent(c, w, h, contentStartY);
     }
 
+    // Health bar — vertical progress bar on the right edge of adventure windows.
+    // Starts at 100% height; anchor(0,1) means it shrinks upward as health drops.
+    // Implements: desk-smasher-6fa — live health bar on window panels.
+    if (isAdventure) {
+      const barBgTex = Assets.get<Texture>(WIDGET_PROGRESS_BG);
+      if (barBgTex) {
+        const barH = h - 16;
+        const barW = 12;
+        const barX = w - barW - 6;
+        const barY = 8;
+
+        const bg = new Sprite(barBgTex);
+        bg.position.set(barX, barY);
+        bg.width  = barW;
+        bg.height = barH;
+        c.addChild(bg);
+
+        const fillTex = Assets.get<Texture>(`${SVG_DIR}/progress_green.svg`);
+        if (fillTex) {
+          const fill = new Sprite(fillTex);
+          fill.anchor.set(0, 1); // anchor bottom-left so bar shrinks upward
+          fill.position.set(barX, barY + barH);
+          fill.width  = barW;
+          fill.height = barH;
+          fill.label  = 'health-bar-fill';
+          c.addChild(fill);
+        }
+      }
+    }
+
     // Close button — scaled proportionally to window size, top-right corner.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {

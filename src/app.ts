@@ -29,7 +29,7 @@
  *   - RebuildCycle (animated fade-to-white transition between rebuilds)
  *   - Input blocked during transitions (no hits against half-built desktop)
  */
-import { Application, Text, TextStyle, Container, Assets, NineSliceSprite, Texture } from 'pixi.js';
+import { Application, Text, TextStyle, Container, Assets, NineSliceSprite, Sprite, Texture } from 'pixi.js';
 import { SafetyLimiter } from './core/safety-limiter';
 import { InputManager } from './core/input/input-manager';
 import { ParentLock } from './core/input/parent-lock';
@@ -456,6 +456,10 @@ export class DeskSmasherApp {
       const damageSet = DeskSmasherApp.TOOL_DAMAGE_PARTICLES[toolName] || 'dirt';
       this.spriteParticles.emit(cx, cy, 3, damageSet as import('./vfx/sprite-particles').ParticleSet);
 
+      // Live health bar update — depletes bar and swaps to red below 30% health.
+      // Implements: desk-smasher-6fa — live health bar on window panels.
+      this._updateHealthBar(element, container);
+
       // Damaged panel swap — when a window drops below 50% health, replace its
       // NineSliceSprite panel (child 0) with the cracked brown damaged variant.
       // Implements: desk-smasher-eqh — damaged panel variants for destruction progression.
@@ -499,6 +503,9 @@ export class DeskSmasherApp {
       applyProgressiveDamage(element, container);
       // Sprite-based damage hit: dirt chunks for tactile impact feel
       this.spriteParticles.emit(cx, cy, 3, 'dirt');
+      // Live health bar update.
+      // Implements: desk-smasher-6fa — live health bar on window panels.
+      this._updateHealthBar(element, container);
     }
 
     this.desktop.applyImpulse(element);
@@ -507,6 +514,34 @@ export class DeskSmasherApp {
   // ---------------------------------------------------------------------------
   // Desktop lifecycle helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Update the health-bar-fill sprite inside a window container to reflect the
+   * element's current health ratio. Swaps the texture from green to red once
+   * health drops to 30% or below. No-ops silently for non-window element types.
+   *
+   * Implements: desk-smasher-6fa — live health bar on window panels.
+   *
+   * @param element   - The DesktopElement that was just damaged.
+   * @param container - The Container holding that element's sprites.
+   */
+  private _updateHealthBar(
+    element: import('./types').DesktopElement,
+    container: Container,
+  ): void {
+    if (element.type !== 'window') return;
+    const fill = container.getChildByLabel('health-bar-fill', true);
+    if (!fill || !(fill instanceof Sprite)) return;
+
+    const healthRatio = Math.max(0, element.health / element.maxHealth);
+    const barH = element.height - 16; // matches the build calculation in tile-panel.ts
+    fill.height = barH * healthRatio;
+
+    if (healthRatio <= 0.3) {
+      const redTex = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_red.svg');
+      if (redTex) fill.texture = redTex;
+    }
+  }
 
   /**
    * Syncs the PixiJS renderer background colour to the current desktop
