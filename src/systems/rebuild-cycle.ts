@@ -126,6 +126,26 @@ export class RebuildCycle {
     this.overlay.alpha = 0;
   }
 
+  /**
+   * Trigger the celebration sequence on demand, bypassing the idle allDestroyed
+   * poll. Called by RespawnManager when all damageable elements are simultaneously
+   * in the respawn queue (full-clear condition).
+   *
+   * No-ops if a transition is already in progress to prevent re-entrancy.
+   *
+   * Usage:
+   * ```typescript
+   * const respawn = new RespawnManager(
+   *   (el) => desktop.respawnElement(el),
+   *   ()   => rebuildCycle.triggerCelebration(),
+   * );
+   * ```
+   */
+  triggerCelebration(): void {
+    if (this._state !== 'idle') return;
+    this.enterState('celebrating');
+  }
+
   // ---------------------------------------------------------------------------
   // State handlers
   // ---------------------------------------------------------------------------

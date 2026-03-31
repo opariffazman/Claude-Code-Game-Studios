@@ -1237,4 +1237,150 @@ export class DesktopManager {
     this._elements.push(el);
     this.containers.push(c);
   }
+
+  // ---------------------------------------------------------------------------
+  // Public: individual element respawn (desk-smasher-hb7)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Rebuilds a single destroyed element in-place: resets its health, assigns a
+   * new random position appropriate to its type, creates a fresh PixiJS container,
+   * and fades it in over ~0.3 seconds.
+   *
+   * Called by RespawnManager after the individual respawn timer fires.
+   * The element's id and array slot are preserved — only the visual container
+   * and position change.
+   *
+   * Edge cases:
+   * - If the element is no longer in the array (e.g. full rebuild happened between
+   *   destroy and respawn), the call is silently ignored.
+   * - If ThemeLoader or TilePanelBuilder are unavailable, Graphics fallbacks are used.
+   *
+   * @param element - The DesktopElement to respawn (must have been destroyed).
+   *
+   * Usage:
+   * ```typescript
+   * desktop.respawnElement(element); // called from RespawnManager
+   * ```
+   */
+  respawnElement(element: DesktopElement): void {
+    const idx = this._elements.indexOf(element);
+    if (idx === -1) return;
+
+    // Destroy the old container (removes from stage and frees GPU resources).
+    const oldContainer = this.containers[idx];
+    if (oldContainer) {
+      oldContainer.destroy({ children: true });
+    }
+
+    // Reset element state to full health at rest.
+    element.health = element.maxHealth;
+    element.destroyed = false;
+    element.vx = 0;
+    element.vy = 0;
+    element.rotSpeed = 0;
+
+    // Choose a new random position appropriate to the element type.
+    const margin = 60;
+    const taskbarH = this._getScaledTaskbarH();
+
+    if (element.type === 'icon') {
+      // Randomly pick either icon zone.
+      const useZone2 = Math.random() > 0.5;
+      const zone = useZone2 ? LAYOUT_CONFIG.ICON_ZONE_2 : LAYOUT_CONFIG.ICON_ZONE;
+      element.x = zone.x * this.screenW + Math.random() * Math.max(0, zone.w * this.screenW - element.width);
+      element.y = zone.y * this.screenH + Math.random() * Math.max(0, zone.h * this.screenH - element.height);
+    } else if (element.type === 'window') {
+      const zone = LAYOUT_CONFIG.WINDOW_ZONE;
+      element.x = zone.x * this.screenW + Math.random() * Math.max(0, zone.w * this.screenW - element.width);
+      element.y = zone.y * this.screenH + Math.random() * Math.max(0, zone.h * this.screenH - element.height);
+    } else {
+      // Generic random position within safe area (above taskbar).
+      element.x = margin + Math.random() * Math.max(0, this.screenW - margin * 2 - element.width);
+      element.y = margin + Math.random() * Math.max(0, this.screenH - taskbarH - margin * 2 - element.height);
+    }
+
+    // Build a fresh container for this element type.
+    let newContainer: Container;
+
+    if (element.type === 'icon') {
+      const texture = this._themeLoader?.getNextIconTexture() ?? null;
+      if (texture) {
+        ({ container: newContainer } = this.factory.createSpriteIcon(
+          texture,
+          element.label,
+          element.width,
+          element.height,
+        ));
+      } else {
+        ({ container: newContainer } = this.factory.createIcon(
+          element.label,
+          pick(this._activeIconColors),
+          element.width,
+        ));
+      }
+    } else if (element.type === 'window' && this._tilePanelBuilder?.isReady) {
+      const styles: PanelStyle[] = ['beige', 'brown', 'blue', 'dark'];
+      const style = styles[Math.floor(Math.random() * styles.length)]!;
+      const themeName = this._themeLoader?.currentTheme?.name;
+      newContainer = this._tilePanelBuilder.buildWindow(style, element.width, element.height, themeName);
+    } else if (element.type === 'notification' && this._tilePanelBuilder?.isReady) {
+      const bannerTex = Assets.get<Texture>(ADV_BANNER_MODERN);
+      if (bannerTex) {
+        const c = new Container();
+        c.label = `notification-respawn-${element.id}`;
+        const banner = new Sprite(bannerTex);
+        banner.width = element.width;
+        banner.height = element.height;
+        c.addChild(banner);
+        const bannerScale = this.screenW / 1920;
+        const textStyle = new TextStyle({ fontSize: Math.round(12 * bannerScale), fill: 0x3a2010, fontFamily: 'sans-serif' });
+        const label = new Text({ text: element.label, style: textStyle });
+        label.anchor.set(0.5, 0.5);
+        label.position.set(element.width / 2, element.height / 2);
+        c.addChild(label);
+        newContainer = c;
+      } else {
+        newContainer = new Container();
+        newContainer.label = `respawn-fallback-${element.id}`;
+      }
+    } else {
+      // Generic fallback — empty container (element still participates in physics/hit detection).
+      newContainer = new Container();
+      newContainer.label = `respawn-fallback-${element.id}`;
+    }
+
+    newContainer.position.set(element.x, element.y);
+    newContainer.alpha = 0; // Start invisible for fade-in.
+    this.container.addChild(newContainer);
+    this.containers[idx] = newContainer;
+
+    // Restore cached health counters so destructionProgress stays accurate.
+    this._currentHealth += element.maxHealth;
+
+    // Fade in over ~0.3 s using setInterval at ~60 Hz.
+    let fadeTime = 0;
+    const fadeIn = setInterval(() => {
+      fadeTime += 0.016;
+      newContainer.alpha = Math.min(1, fadeTime / 0.3);
+      if (fadeTime >= 0.3) {
+        newContainer.alpha = 1;
+        clearInterval(fadeIn);
+      }
+    }, 16);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private: layout helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the taskbar height in pixels, scaled to the current viewport height.
+   * Mirrors the calculation in buildTaskbar() so respawnElement() places elements
+   * in the correct safe area without re-building the taskbar.
+   */
+  private _getScaledTaskbarH(): number {
+    const taskbarScale = this.screenH / 768;
+    return Math.round(DESKTOP_CONFIG.TASKBAR_HEIGHT * Math.max(0.5, Math.min(1.5, taskbarScale)));
+  }
 }
