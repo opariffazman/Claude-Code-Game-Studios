@@ -51,6 +51,7 @@ import { ToolIndicator } from './ui/tool-indicator';
 import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
 import { HealthDashboard } from './ui/health-dashboard';
 import { ChaosStars } from './ui/chaos-stars';
+import { RespawnManager } from './systems/respawn-manager';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -78,6 +79,7 @@ export class DeskSmasherApp {
   private tilePanelBuilder!: TilePanelBuilder;
   private healthDashboard!: HealthDashboard;
   private chaosStars!: ChaosStars;
+  private respawnManager!: RespawnManager;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -162,6 +164,25 @@ export class DeskSmasherApp {
     // Start background preload of the next theme so the first rebuild is instant.
     void this.themeLoader.preloadNextTheme();
 
+    // RespawnManager — hybrid individual + full-clear respawn system.
+    // Instantiated after the first buildDesktop() so elements[] is populated.
+    // Implements: desk-smasher-3xi — wire RespawnManager into destruction pipeline.
+    this.respawnManager = new RespawnManager(
+      // On individual element respawn: rebuild its visual and refresh the dashboard.
+      (element) => {
+        this.desktop.respawnElement(element);
+        this.healthDashboard.onDamage(this.desktop.elements);
+      },
+      // On full clear: all damageable elements destroyed simultaneously → celebrate.
+      () => {
+        this.rebuildCycle.triggerCelebration();
+      },
+    );
+    {
+      const damageableCount = this.desktop.elements.filter(e => e.type !== 'taskbar').length;
+      this.respawnManager.setTotalDamageable(damageableCount);
+    }
+
     // 10. Sync background colour to the desktop wallpaper palette
     this.syncBackground();
 
@@ -238,6 +259,14 @@ export class DeskSmasherApp {
         this.particles.clear();
         this.spriteParticles.clear();
         this.mouseTools.clearTrails();
+        // Cancel any stale respawn timers from the previous desktop, then
+        // re-count damageable elements for the freshly built desktop.
+        // Implements: desk-smasher-3xi — respawn state reset on full rebuild.
+        this.respawnManager.reset();
+        {
+          const newCount = this.desktop.elements.filter(e => e.type !== 'taskbar').length;
+          this.respawnManager.setTotalDamageable(newCount);
+        }
         // Reset dashboard to full health for the new desktop.
         // Implements: health-dashboard.md — bars reset to 100% on desktop rebuild.
         // Implements: desk-smasher-v37 — re-wire to new taskbar container after rebuild.
@@ -517,6 +546,9 @@ export class DeskSmasherApp {
       // Update centralized health dashboard on destruction.
       // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
       this.healthDashboard.onDamage(this.desktop.elements);
+      // Notify respawn system — schedules individual timer or triggers full-clear.
+      // Implements: desk-smasher-3xi — respawn wired into destruction pipeline.
+      this.respawnManager.onDestroyed(element);
     } else {
       // Tool-consistent damage: always use the same damage effect (shake)
       // rather than random registry picks that look like cycling
@@ -593,6 +625,9 @@ export class DeskSmasherApp {
       // Update centralized health dashboard on destruction.
       // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
       this.healthDashboard.onDamage(this.desktop.elements);
+      // Notify respawn system — schedules individual timer or triggers full-clear.
+      // Implements: desk-smasher-3xi — respawn wired into destruction pipeline.
+      this.respawnManager.onDestroyed(element);
     } else {
       const dmgEffect = this.damageRegistry.getRandom();
       dmgEffect(element, container, this.particles, this.audioManager);
