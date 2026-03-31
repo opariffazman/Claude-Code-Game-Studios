@@ -676,7 +676,8 @@ export class DesktopManager {
     // Implements: desk-smasher-dbt — all icons always shown.
     this.buildIcons(this._sessionIconCount || (this._themeLoader?.currentTheme.iconFrames.length ?? 30));
     this.buildWindows(this._sessionWindowCount || randInt(2, 3));
-    this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
+    // desk-smasher-30t: notification panels removed — AchievementToast handles milestones.
+    // this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
 
     // Decorative hanging banner — same logic as buildDesktop().
     const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
@@ -760,8 +761,8 @@ export class DesktopManager {
     // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
     // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
-    // desk-smasher-reu: notification banners using adventure banner_modern sprite.
-    this.buildNotifications(this._sessionNotifCount);
+    // desk-smasher-30t: notification panels removed — AchievementToast handles milestones.
+    // this.buildNotifications(this._sessionNotifCount);
 
     // desk-smasher-621: decorative hanging banner at top-center.
     const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
