@@ -817,11 +817,13 @@ export class DesktopManager {
     /**
      * Implements: design/gdd/desktop-layout.md §2 — Icon Grid Rules
      * Implements: docs/architecture/layout-generation-algorithm.md §2
-     * Implements: desk-smasher-dbt — all 30 animals shown in a 3-col × 10-row grid.
+     * Implements: desk-smasher-dbt — all 30 animals shown in two 3-col × 5-row grids.
+     * Implements: desk-smasher-u1y — split into top-left (15) and bottom-right (15).
      *
      * All theme icons are shown every generation. Order is shuffled via
-     * ThemeLoader.resetShuffle() so each desktop feels fresh. No initial
-     * rotation — rotation is earned through smashing (damage wobble).
+     * ThemeLoader.resetShuffle() so each desktop feels fresh. The sequential
+     * getNextIconTexture() calls ensure no duplicates across both grids.
+     * No initial rotation — rotation is earned through smashing (damage wobble).
      */
     const useSprites = this._themeLoader?.isReady ?? false;
 
@@ -838,25 +840,44 @@ export class DesktopManager {
       this._themeLoader!.resetShuffle();
     }
 
+    const halfCount = Math.ceil(iconCount / 2);
+
+    // Group 1: top-left (first 15 icons via sequential getNextIconTexture calls).
+    // Group 2: bottom-right (remaining icons — shuffle continues from where group 1 left off).
+    this._buildIconGrid(halfCount,          labels, 0,         LAYOUT_CONFIG.ICON_ZONE);
+    this._buildIconGrid(iconCount - halfCount, labels, halfCount, LAYOUT_CONFIG.ICON_ZONE_2);
+  }
+
+  /**
+   * Renders a single icon grid group into the given zone.
+   * Implements: desk-smasher-u1y — shared helper for both icon corner groups.
+   *
+   * @param count    - Number of icons to place in this grid.
+   * @param labels   - Full shuffled label fallback array (indexed by globalOffset + i).
+   * @param globalOffset - Index offset into `labels` for this group (0 for group 1, halfCount for group 2).
+   * @param zoneCfg  - Zone descriptor from LAYOUT_CONFIG (fractional x/y/w/h).
+   */
+  private _buildIconGrid(
+    count: number,
+    labels: string[],
+    globalOffset: number,
+    zoneCfg: { x: number; y: number; w: number; h: number; padding: number },
+  ): void {
+    const useSprites = this._themeLoader?.isReady ?? false;
+
     // Fixed icon size — always the same regardless of count.
-    // Fixes: desk-smasher-yy2 — previously icon size depended on cell size which
-    // depended on count (more icons = smaller cells = smaller icons).
-    // Now size is derived solely from viewport scale and ICON_TARGET_SIZE config.
+    // Fixes: desk-smasher-yy2 — size derived solely from viewport scale.
     const baseScale = Math.min(this.screenW, this.screenH) / 1200;
     const iconSize = Math.round(LAYOUT_CONFIG.ICON_TARGET_SIZE * baseScale);
-    const iconW = iconSize;
-    const iconH = iconSize;
 
-    // Fixed 3-column grid regardless of viewport width.
-    // Implements: desk-smasher-dbt — 3 cols × 10 rows for 30 animals.
     const cols = LAYOUT_CONFIG.ICON_COLS_LARGE;
 
-    const iconZone = resolveZone(LAYOUT_CONFIG.ICON_ZONE, this.screenW, this.screenH);
+    const iconZone = resolveZone(zoneCfg, this.screenW, this.screenH);
     const placements = generateIconGrid(
       iconZone,
-      iconCount,
-      iconW,
-      iconH,
+      count,
+      iconSize,
+      iconSize,
       cols,
       LAYOUT_CONFIG.ICON_JITTER,
     );
@@ -877,18 +898,17 @@ export class DesktopManager {
         const texture = this._themeLoader!.getNextIconTexture();
         if (texture) {
           const frames = this._themeLoader!.currentTheme.iconFrames;
-          const frameName = frames[i % frames.length] ?? labels[i] ?? `Icon ${i}`;
+          const frameName = frames[(globalOffset + i) % frames.length] ?? labels[globalOffset + i] ?? `Icon ${globalOffset + i}`;
           displayLabel = frameName.charAt(0).toUpperCase() + frameName.slice(1);
-          // Pass fixed iconSize — uniform scale within the sprite so all icons
-          // are the same pixel size regardless of how many icons are on screen.
+          // Pass fixed iconSize — uniform scale so all icons are the same pixel size.
           // Fixes: desk-smasher-yy2
           ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, iconSize, iconSize));
         } else {
-          displayLabel = labels[i] ?? `Icon ${i}`;
+          displayLabel = labels[globalOffset + i] ?? `Icon ${globalOffset + i}`;
           ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
         }
       } else {
-        displayLabel = labels[i] ?? `Icon ${i}`;
+        displayLabel = labels[globalOffset + i] ?? `Icon ${globalOffset + i}`;
         ({ container: c } = this.factory.createIcon(displayLabel, color, iconSize));
       }
 

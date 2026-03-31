@@ -84,8 +84,10 @@ export const DESKTOP_CONFIG = {
  * CASCADE/JITTER values are in pixels.
  */
 export const LAYOUT_CONFIG = {
-  /** Left-side icon column zone. */
-  ICON_ZONE:   { x: 0,    y: 0,    w: 0.18, h: 0.88, padding: 10 },
+  /** Left-side icon column zone (top-left, 15 animals). */
+  ICON_ZONE:   { x: 0,    y: 0,    w: 0.18, h: 0.45, padding: 10 },
+  /** Bottom-right icon column zone (15 animals, above taskbar). */
+  ICON_ZONE_2: { x: 0.78, y: 0.45, w: 0.20, h: 0.42, padding: 10 },
   /** Central area for application windows. */
   WINDOW_ZONE: { x: 0.20, y: 0.05, w: 0.55, h: 0.80, padding: 10 },
   /** Top-right notification toast area. */
