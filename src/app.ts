@@ -59,6 +59,7 @@ import { ToolBag } from './ui/tool-bag';
 import { TOOL_STATS } from './mouse/tool-stats';
 import { MilestoneTracker } from './systems/milestone-tracker';
 import { AchievementToast } from './ui/achievement-toast';
+import { MilestoneBannerText } from './ui/milestone-banner-text';
 import { LAYOUT_CONFIG } from './config';
 import type { SoundType } from './types';
 
@@ -92,8 +93,12 @@ export class DeskSmasherApp {
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
-  /** CombatLog instance used to display milestone entries inside the milestone banner element. */
-  private _milestoneLogs: CombatLog[] = [];
+  /** Single-line centered text in the "Smash Goals" banner. Advances as hit milestones fire. */
+  private _hitBanner: MilestoneBannerText | null = null;
+  /** Single-line centered text in the "Animal Hunt" banner. Advances as animal milestones fire. */
+  private _animalBanner: MilestoneBannerText | null = null;
+  /** Single-line centered text in the "Chaos Mode" banner. Advances as chaos milestones fire. */
+  private _chaosBanner: MilestoneBannerText | null = null;
   private milestoneTracker!: MilestoneTracker;
   private achievementToast!: AchievementToast;
   /** Cached content dimensions for the Tool Card window — needed by setTool() re-renders. */
@@ -232,7 +237,17 @@ export class DeskSmasherApp {
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
       this.combatLog?.addEntry('\u2605', label, 'milestone');
-      for (const ml of this._milestoneLogs) ml.addEntry('\u2605', label, 'milestone');
+
+      // Advance banner text to the next milestone goal when the current one fires.
+      // Implements: desk-smasher-zh2 — dynamic single-line milestone banners.
+      if (label.includes('10 Hits'))            this._hitBanner?.setText('50 Hit Combo!');
+      if (label.includes('50 Hit'))             this._hitBanner?.setText('100 Hit Rampage!');
+      if (label.includes('100 Hit'))            this._hitBanner?.setText('\u2605 100 Hit Rampage!');
+      if (label.includes('First Animal'))       this._animalBanner?.setText('10 Animals Smashed!');
+      if (label.includes('10 Animals'))         this._animalBanner?.setText('\u2605 All Animals Smashed!');
+      if (label.includes('Getting Crazy'))      this._chaosBanner?.setText('MAX CHAOS!');
+      if (label.includes('MAX CHAOS'))          this._chaosBanner?.setText('\u2605 TOTAL DESTRUCTION!');
+      if (label.includes('Total Destruction'))  this._chaosBanner?.setText('\u2605 TOTAL DESTRUCTION!');
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
@@ -843,40 +858,26 @@ export class DeskSmasherApp {
     const mlContentW = mileW - 30;
     const mlContentH = mileH - 12;
 
-    // Banner 1: Destruction milestones
+    // Banner 1: Hit milestones — shows current goal, advances as milestones fire.
+    // Implements: desk-smasher-zh2 — single centered Text replacing CombatLog.
     const ml1Y = Math.round(sh * 0.02);
     const ml1 = this.desktop.createMilestoneBanner('Smash Goals', mileX, ml1Y, mileW, mileH);
     if (ml1) {
-      const log1 = new CombatLog();
-      log1.build(ml1.container, 5, 3, mlContentW, mlContentH);
-      log1.addEntry('', '10 Hits', 'milestone');
-      log1.addEntry('', '50 Hit Combo', 'milestone');
-      log1.addEntry('', '100 Hit Rampage', 'milestone');
-      this._milestoneLogs.push(log1);
+      this._hitBanner = new MilestoneBannerText(ml1.container, 5, 3, mlContentW, mlContentH, '10 Hits!');
     }
 
     // Banner 2: Animal milestones
     const ml2Y = ml1Y + mileH + mileGap;
     const ml2 = this.desktop.createMilestoneBanner('Animal Hunt', mileX, ml2Y, mileW, mileH);
     if (ml2) {
-      const log2 = new CombatLog();
-      log2.build(ml2.container, 5, 3, mlContentW, mlContentH);
-      log2.addEntry('', 'First Animal Down', 'milestone');
-      log2.addEntry('', '10 Animals Smashed', 'milestone');
-      log2.addEntry('', 'Window Breaker', 'milestone');
-      this._milestoneLogs.push(log2);
+      this._animalBanner = new MilestoneBannerText(ml2.container, 5, 3, mlContentW, mlContentH, 'Smash an Animal!');
     }
 
     // Banner 3: Chaos milestones
     const ml3Y = ml2Y + mileH + mileGap;
     const ml3 = this.desktop.createMilestoneBanner('Chaos Mode', mileX, ml3Y, mileW, mileH);
     if (ml3) {
-      const log3 = new CombatLog();
-      log3.build(ml3.container, 5, 3, mlContentW, mlContentH);
-      log3.addEntry('', 'Getting Crazy (★★)', 'milestone');
-      log3.addEntry('', 'MAX CHAOS (★★★★★)', 'milestone');
-      log3.addEntry('', 'Total Destruction', 'milestone');
-      this._milestoneLogs.push(log3);
+      this._chaosBanner = new MilestoneBannerText(ml3.container, 5, 3, mlContentW, mlContentH, 'Reach \u2605\u2605 Chaos!');
     }
 
   }
