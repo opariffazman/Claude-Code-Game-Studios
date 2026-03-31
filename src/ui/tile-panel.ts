@@ -61,8 +61,9 @@ const ADV_PROGRESS_BORDER_RED   = `${SVG_DIR}/progress_red_border.svg`;
 const ADV_PROGRESS_BORDER_BLUE  = `${SVG_DIR}/progress_blue_border.svg`;
 
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
-export const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
-export const ADV_BANNER_HANGING = `${SVG_DIR}/banner_hanging.svg`;
+export const ADV_BANNER_MODERN          = `${SVG_DIR}/banner_modern.svg`;
+export const ADV_BANNER_HANGING         = `${SVG_DIR}/banner_hanging.svg`;
+export const ADV_BANNER_CLASSIC_CURTAIN = `${SVG_DIR}/banner_classic_curtain.svg`;
 
 /** Adventure checkbox sprites — SVG versions from the Vector set. */
 export const ADV_CHECKBOX_CHECKED = `${SVG_DIR}/checkbox_brown_checked.svg`;
@@ -86,6 +87,7 @@ export class TilePanelBuilder {
       ADV_PANEL_DAMAGED,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
+      ADV_BANNER_CLASSIC_CURTAIN,
     ];
 
     // De-duplicate: some widget paths overlap with named constants above.

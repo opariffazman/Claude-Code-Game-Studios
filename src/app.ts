@@ -59,6 +59,7 @@ import { ToolBag } from './ui/tool-bag';
 import { TOOL_STATS } from './mouse/tool-stats';
 import { MilestoneTracker } from './systems/milestone-tracker';
 import { AchievementToast } from './ui/achievement-toast';
+import { MilestonePanel } from './ui/milestone-panel';
 import { LAYOUT_CONFIG } from './config';
 import type { SoundType } from './types';
 
@@ -92,7 +93,7 @@ export class DeskSmasherApp {
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
-  private milestoneLog: CombatLog | null = null;
+  private milestonePanel: MilestonePanel | null = null;
   private milestoneTracker!: MilestoneTracker;
   private achievementToast!: AchievementToast;
   /** Cached content dimensions for the Tool Card window — needed by setTool() re-renders. */
@@ -223,15 +224,17 @@ export class DeskSmasherApp {
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
 
+    // MilestonePanel — stacked adventure banners in the top-right corner.
+    // Implements: desk-smasher-7jg — milestone entries persist as stacked banners.
+    this.milestonePanel = new MilestonePanel(uiLayer, this.app.screen.width);
+
     // Achievement Toast + MilestoneTracker — fire-once callbacks for session milestones.
     // Implements: desk-smasher-3qy.11 / 3qy.12 — milestone tracking + toast rendering.
-    // Implements: desk-smasher-7jg — milestone entries appear in the Combat Log with
-    // amber colour so recent achievements persist visibly in the top-right panel.
     this.achievementToast = new AchievementToast(uiLayer, this.app.screen.width);
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
-      this.combatLog?.addEntry('★', label, 'milestone');
-      this.milestoneLog?.addEntry('★', label, 'milestone');
+      this.combatLog?.addEntry('\u2605', label, 'milestone');
+      this.milestonePanel?.addEntry(label);
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
@@ -746,18 +749,14 @@ export class DeskSmasherApp {
     const zoneW = zone.w * sw;
     const zoneH = zone.h * sh;
 
-    // Four windows arranged in a 2x2 grid inside WINDOW_ZONE:
-    //   [Combat Log]  [Tool Card]     (top row)
-    //   [Tool Bag]    [Milestones]    (bottom row)
+    // Three windows arranged in a single row inside WINDOW_ZONE:
+    //   [Combat Log]  [Tool Card]  [Tool Bag]
     //
     // desk-smasher-c3g: all windows are uniform squares.
-    // desk-smasher-53s: Milestones in bottom-right cell, always within zone bounds.
-    // desk-smasher-3eb: 2x2 avoids overflow on 1280px-wide viewports where
-    //   4 columns × squareSize exceed WINDOW_ZONE width (704 px).
+    // Milestones moved to MilestonePanel (top-right banner stack on uiLayer).
     const gap = 15;
-    const cellW = (zoneW - gap) / 2;
-    const cellH = (zoneH - gap) / 2;
-    const squareSize = Math.round(Math.min(cellW, cellH) * 0.9);
+    const cellW = (zoneW - gap * 2) / 3;
+    const squareSize = Math.round(Math.min(cellW, zoneH) * 0.9);
 
     const logW = squareSize;
     const logH = squareSize;
@@ -771,13 +770,8 @@ export class DeskSmasherApp {
 
     const bagW = squareSize;
     const bagH = squareSize;
-    const bagX = Math.round(zoneX);
-    const bagY = Math.round(zoneY + cellH + gap);
-
-    const mlW = squareSize;
-    const mlH = squareSize;
-    const mlX = Math.round(zoneX + cellW + gap);
-    const mlY = Math.round(zoneY + cellH + gap);
+    const bagX = Math.round(zoneX + (cellW + gap) * 2);
+    const bagY = Math.round(zoneY);
 
     // -- Combat Log (left column)
     this.combatLog = new CombatLog();
@@ -843,20 +837,6 @@ export class DeskSmasherApp {
       );
     }
 
-    // -- Milestone Log (top-right, notification type so dashboard tracks it)
-    const mlContentW = mlW - 40;
-    const mlContentH = mlH - 55;
-    this.milestoneLog = new CombatLog();
-    const mlResult = this.desktop.createFunctionalWindow(
-      'Milestones', mlX, mlY, mlW, mlH,
-      (newContainer) => {
-        this.milestoneLog!.build(newContainer, 20, 40, mlContentW, mlContentH);
-      },
-      'notification',
-    );
-    if (mlResult) {
-      this.milestoneLog.build(mlResult.container, 20, 40, mlContentW, mlContentH);
-    }
   }
 
   /**
