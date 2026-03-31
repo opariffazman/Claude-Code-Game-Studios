@@ -835,6 +835,21 @@ export class DeskSmasherApp {
       );
     }
 
+    // -- Milestone banner (top-right, horizontal, type='milestone' for blue pips)
+    const mileW = Math.round(sw * 0.18);
+    const mileH = Math.round(sh * 0.06);
+    const mileX = Math.round(sw * 0.80);
+    const mileY = Math.round(sh * 0.02);
+    const mlContentW = mileW - 30;
+    const mlContentH = mileH - 15;
+    this.milestoneLog = new CombatLog();
+    const mlResult = this.desktop.createMilestoneBanner(
+      'Milestones', mileX, mileY, mileW, mileH,
+    );
+    if (mlResult) {
+      this.milestoneLog.build(mlResult.container, 5, 5, mlContentW, mlContentH);
+    }
+
   }
 
   /**
