@@ -157,8 +157,11 @@ export function generateWindowTiled(
     const col = i % cols;
     const row = Math.floor(i / cols);
 
-    const w = Math.round(slotW - padding * 2);
-    const h = Math.round(slotH - padding * 2);
+    // desk-smasher-cro: Square windows — varied sizes (60-90% of slot's smaller dimension).
+    const maxSize = Math.min(slotW, slotH) - padding * 2;
+    const size = Math.round(maxSize * (0.6 + Math.random() * 0.3));
+    const w = size;
+    const h = size;
 
     const jx = (Math.random() - 0.5) * maxJitter;
     const jy = (Math.random() - 0.5) * maxJitter;
@@ -166,8 +169,9 @@ export function generateWindowTiled(
     const slotLeft = zone.left + col * slotW;
     const slotTop  = zone.top  + row  * slotH;
 
-    const rawX = slotLeft + padding + jx;
-    const rawY = slotTop  + padding + jy;
+    // Center the square in its slot, then apply jitter.
+    const rawX = slotLeft + (slotW - size) / 2 + jx;
+    const rawY = slotTop  + (slotH - size) / 2 + jy;
 
     // Clamp within slot to guarantee no overlap even at edge cases.
     const x = Math.round(clamp(rawX, slotLeft + padding, slotLeft + slotW - padding - w));
