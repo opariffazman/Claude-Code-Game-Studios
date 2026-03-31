@@ -57,8 +57,8 @@ const ADV_PROGRESS_BG   = `${SVG_DIR}/progress_transparent.svg`;
 const ADV_PROGRESS_FILL = `${SVG_DIR}/progress_green.svg`;
 
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
-const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
-const ADV_BANNER_HANGING = `${SVG_DIR}/banner_hanging.svg`;
+export const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
+export const ADV_BANNER_HANGING = `${SVG_DIR}/banner_hanging.svg`;
 
 /** Adventure checkbox sprites — no SVG equivalents; keep as PNGs. */
 export const ADV_CHECKBOX_CHECKED = 'assets/kenney/ui/adventure/checkbox_brown_checked.png';

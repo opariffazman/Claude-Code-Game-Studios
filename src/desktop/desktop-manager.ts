@@ -20,7 +20,7 @@
 import { Assets, Container, Graphics, NineSliceSprite, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
 import type { TilePanelBuilder, PanelStyle } from '../ui/tile-panel';
-import { ADV_CHECKBOX_CHECKED, ADV_CHECKBOX_EMPTY } from '../ui/tile-panel';
+import { ADV_CHECKBOX_CHECKED, ADV_CHECKBOX_EMPTY, ADV_BANNER_MODERN, ADV_BANNER_HANGING } from '../ui/tile-panel';
 import { DESKTOP_CONFIG, LAYOUT_CONFIG } from '../config';
 import {
   WALLPAPER_PALETTES, ICON_LABELS, WINDOW_TITLES, STICKY_TEXTS, NOTIF_TEXTS,
@@ -565,7 +565,7 @@ export class DesktopManager {
     this.buildNotifications(this._sessionNotifCount || randInt(2, 3));
 
     // Decorative hanging banner — same logic as buildDesktop().
-    const hangingTex = Assets.get<Texture>('assets/kenney/ui/adventure/banner_hanging.png');
+    const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
     if (hangingTex) {
       const banner = new Sprite(hangingTex);
       banner.anchor.set(0.5, 0);
@@ -650,7 +650,7 @@ export class DesktopManager {
     this.buildNotifications(this._sessionNotifCount);
 
     // desk-smasher-621: decorative hanging banner at top-center.
-    const hangingTex = Assets.get<Texture>('assets/kenney/ui/adventure/banner_hanging.png');
+    const hangingTex = Assets.get<Texture>(ADV_BANNER_HANGING);
     if (hangingTex) {
       const banner = new Sprite(hangingTex);
       banner.anchor.set(0.5, 0);
@@ -1062,7 +1062,7 @@ export class DesktopManager {
      */
     const notifs = shuffle(NOTIF_TEXTS).slice(0, count);
     const bannerTex = this._tilePanelBuilder?.isReady
-      ? Assets.get<Texture>('assets/kenney/ui/adventure/banner_modern.png')
+      ? Assets.get<Texture>(ADV_BANNER_MODERN)
       : undefined;
 
     // Determine banner dimensions from texture or use viewport-proportional fallback.
