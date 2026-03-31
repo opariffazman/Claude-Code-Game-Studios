@@ -37,8 +37,13 @@ const BAR_FILL_PATHS: Record<string, string> = {
   alerts:     `${SVG_DIR}/progress_blue_horizontal.svg`,
 };
 
-/** Left/right cap width in the 32×16 SVG rasterised at resolution 4 (128×64 px texture). */
-const BAR_CAP_W = 10;
+/**
+ * Left/right cap width in TEXTURE pixels for NineSliceSprite.
+ * The horizontal SVGs are 32×16 (SVG units). At resolution 4 the rasterised
+ * texture is 128×64. The capsule caps occupy 8 SVG px = 32 texture px each.
+ * Using plain Sprites for now (NineSlice re-enabled once render is confirmed).
+ */
+const BAR_CAP_W = 32;
 
 // ---------------------------------------------------------------------------
 // Layout tuning knobs
@@ -145,7 +150,12 @@ export class HealthDashboard {
     for (const path of paths) {
       Assets.add({ alias: path, src: path, data: { resolution: 4 } });
     }
-    await Assets.load(paths);
+    try {
+      await Assets.load(paths);
+      console.log('[HealthDashboard] preloaded', paths.length, 'SVGs:', paths);
+    } catch (e) {
+      console.warn('[HealthDashboard] preload FAILED:', e);
+    }
   }
 
   /**
@@ -204,26 +214,29 @@ export class HealthDashboard {
     this._taskbarContainer.addChild(this.dashContainer);
 
     const bgTex = Assets.get<Texture>(BAR_BG_PATH);
+    console.log(
+      '[HealthDashboard] build() bgTex:', bgTex ? 'loaded' : 'NULL',
+      'elements:', elements.length,
+      'taskbar:', !!this._taskbarContainer,
+      'tbW:', tbW, 'tbH:', tbH,
+      'categories:', activeCategories,
+    );
 
     let xCursor = BAR_AREA_START_X;
     for (const cat of activeCategories) {
       const barX = xCursor;
 
-      // Background track — horizontal NineSliceSprite, rounded left/right caps preserved.
+      // Background track — plain Sprite stretches the capsule texture to fill bar area.
+      // TODO(NineSlice): swap back to NineSliceSprite with BAR_CAP_W=32 once render confirmed.
       let bgSprite: NineSliceSprite | Sprite;
       if (bgTex) {
-        bgSprite = new NineSliceSprite({
-          texture:      bgTex,
-          leftWidth:    BAR_CAP_W,
-          topHeight:    0,
-          rightWidth:   BAR_CAP_W,
-          bottomHeight: 0,
-          width:        singleBarW,
-          height:       barH,
-        });
+        bgSprite = new Sprite(bgTex);
         bgSprite.position.set(barX, barY);
-        bgSprite.label = `health-bg-${cat}`;
+        bgSprite.width  = singleBarW;
+        bgSprite.height = barH;
+        bgSprite.label  = `health-bg-${cat}`;
         this.dashContainer.addChild(bgSprite);
+        console.log(`[HealthDashboard] added bg sprite for ${cat} at (${barX},${barY}) ${singleBarW}x${barH}`);
       } else {
         // Fallback: invisible placeholder so BarState always has a valid reference.
         bgSprite = new Sprite();
@@ -232,19 +245,14 @@ export class HealthDashboard {
       // Colored fill — starts full width, shrinks right as health depletes.
       const fillPath = BAR_FILL_PATHS[cat];
       const fillTex  = Assets.get<Texture>(fillPath);
+      console.log(`[HealthDashboard] fillTex for ${cat}:`, fillTex ? 'loaded' : 'NULL');
       let fillSprite: NineSliceSprite | Sprite;
       if (fillTex) {
-        fillSprite = new NineSliceSprite({
-          texture:      fillTex,
-          leftWidth:    BAR_CAP_W,
-          topHeight:    0,
-          rightWidth:   BAR_CAP_W,
-          bottomHeight: 0,
-          width:        singleBarW,
-          height:       barH,
-        });
+        fillSprite = new Sprite(fillTex);
         fillSprite.position.set(barX, barY);
-        fillSprite.label = `health-fill-${cat}`;
+        fillSprite.width  = singleBarW;
+        fillSprite.height = barH;
+        fillSprite.label  = `health-fill-${cat}`;
         this.dashContainer.addChild(fillSprite);
       } else {
         fillSprite = new Sprite();
