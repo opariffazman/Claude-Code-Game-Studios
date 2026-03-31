@@ -209,45 +209,65 @@ export class TilePanelBuilder {
     }
 
     // Health bar — vertical progress bar on the right edge of adventure windows.
-    // Uses border + fill sprites at native 1:2 aspect ratio (16x32), scaled uniformly.
-    // Border renders ON TOP of fill. Fill shrinks upward from bottom as health drops.
+    // Uses NineSliceSprite to stretch only the middle of each capsule SVG, keeping
+    // the rounded top/bottom caps (~8px each) pixel-perfect at any window height.
+    // Fill is bottom-aligned: height shrinks and Y is pushed down as health drops.
     // Implements: desk-smasher-6fa — live health bar on window panels.
-    // Fixes: desk-smasher-6sl — maintain 1:2 aspect ratio, use border variant.
+    // Fixes: desk-smasher-b2m — NineSlice capsule bars instead of blob-scaled sprites.
     if (isAdventure) {
       const borderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_GREEN);
       const fillTex   = Assets.get<Texture>(ADV_PROGRESS_FILL);
       const bgTex     = Assets.get<Texture>(WIDGET_PROGRESS_BG);
 
-      if (borderTex && fillTex) {
-        // Native aspect ratio: 16x32 (1:2). Scale uniformly to fit window height.
-        const nativeW    = 16;
-        const nativeH    = 32;
-        const targetH    = h - 20; // leave 10px margin top and bottom
-        const uniformScale = targetH / nativeH;
-        const barW       = nativeW * uniformScale;
-        const barX       = w - barW - 6; // flush to right edge with 6px gap
-        const barY       = 10;
+      const barW = 20;           // thin fixed width
+      const barH = h - 24;       // fills window height with 12px margins
+      const barX = w - barW - 8;
+      const barY = 12;
+      const CAP  = 10;           // rounded cap height in the rasterised SVG texture
 
-        // Background track (empty/transparent) behind everything
-        if (bgTex) {
-          const bg = new Sprite(bgTex);
-          bg.position.set(barX, barY);
-          bg.scale.set(uniformScale); // uniform — no stretch
-          c.addChild(bg);
-        }
+      // Background track (empty/transparent) behind everything
+      if (bgTex) {
+        const bg = new NineSliceSprite({
+          texture:      bgTex,
+          leftWidth:    0,
+          topHeight:    CAP,
+          rightWidth:   0,
+          bottomHeight: CAP,
+          width:        barW,
+          height:       barH,
+        });
+        bg.position.set(barX, barY);
+        c.addChild(bg);
+      }
 
-        // Fill (green) — anchored bottom-left so it shrinks upward as health drops
-        const fill = new Sprite(fillTex);
-        fill.anchor.set(0, 1);
-        fill.position.set(barX, barY + targetH);
-        fill.scale.set(uniformScale); // uniform — no stretch
+      // Fill (green) — NineSlice, starts full height, shrinks + shifts down on damage
+      if (fillTex) {
+        const fill = new NineSliceSprite({
+          texture:      fillTex,
+          leftWidth:    0,
+          topHeight:    CAP,
+          rightWidth:   0,
+          bottomHeight: CAP,
+          width:        barW,
+          height:       barH,
+        });
+        fill.position.set(barX, barY);
         fill.label = 'health-bar-fill';
         c.addChild(fill);
+      }
 
-        // Border frame rendered ON TOP of fill — keeps crisp outline at all health levels
-        const border = new Sprite(borderTex);
+      // Border frame rendered ON TOP of fill — keeps crisp outline at all health levels
+      if (borderTex) {
+        const border = new NineSliceSprite({
+          texture:      borderTex,
+          leftWidth:    0,
+          topHeight:    CAP,
+          rightWidth:   0,
+          bottomHeight: CAP,
+          width:        barW,
+          height:       barH,
+        });
         border.position.set(barX, barY);
-        border.scale.set(uniformScale); // uniform — matches fill dimensions exactly
         border.label = 'health-bar-border';
         c.addChild(border);
       }
