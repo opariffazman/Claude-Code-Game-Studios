@@ -53,15 +53,12 @@ const CLOSE_BTN = `${SVG_DIR}/button_red_close.svg`;
  *  Implements: desk-smasher-eqh — damaged panel variants for destruction progression. */
 export const ADV_PANEL_DAMAGED = `${SVG_DIR}/panel_brown_damaged.svg`;
 
-/** Progress border SVG paths — exported so app.ts can swap textures on health update. */
-export const ADV_PROGRESS_BORDER_GREEN_PATH = `${SVG_DIR}/progress_green_border.svg`;
-export const ADV_PROGRESS_BORDER_RED_PATH   = `${SVG_DIR}/progress_red_border.svg`;
-
-/** Adventure progress bar sprites — background track, fill bar, and border frames. */
+/** Adventure progress bar sprites — background track, fill bars, and border frames.
+ *  Preloaded here so HealthDashboard can reuse the textures without extra loading. */
 const ADV_PROGRESS_BG           = `${SVG_DIR}/progress_transparent.svg`;
-const ADV_PROGRESS_FILL         = `${SVG_DIR}/progress_green.svg`;
 const ADV_PROGRESS_BORDER_GREEN = `${SVG_DIR}/progress_green_border.svg`;
 const ADV_PROGRESS_BORDER_RED   = `${SVG_DIR}/progress_red_border.svg`;
+const ADV_PROGRESS_BORDER_BLUE  = `${SVG_DIR}/progress_blue_border.svg`;
 
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
 export const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
@@ -105,9 +102,9 @@ export class TilePanelBuilder {
       ADV_ROUND_BTN,
       CLOSE_BTN,
       ADV_PROGRESS_BG,
-      ADV_PROGRESS_FILL,
       ADV_PROGRESS_BORDER_GREEN,
       ADV_PROGRESS_BORDER_RED,
+      ADV_PROGRESS_BORDER_BLUE,
       ADV_PANEL_DAMAGED,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
@@ -214,64 +211,7 @@ export class TilePanelBuilder {
     // Fill is bottom-aligned: height shrinks and Y is pushed down as health drops.
     // Implements: desk-smasher-6fa — live health bar on window panels.
     // Fixes: desk-smasher-b2m — NineSlice capsule bars instead of blob-scaled sprites.
-    if (isAdventure) {
-      const borderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_GREEN);
-      const fillTex   = Assets.get<Texture>(ADV_PROGRESS_FILL);
-      const bgTex     = Assets.get<Texture>(WIDGET_PROGRESS_BG);
-
-      const barW = 20;           // thin fixed width
-      const barH = h - 24;       // fills window height with 12px margins
-      const barX = w - barW - 8;
-      const barY = 12;
-      const CAP  = 10;           // rounded cap height in the rasterised SVG texture
-
-      // Background track (empty/transparent) behind everything
-      if (bgTex) {
-        const bg = new NineSliceSprite({
-          texture:      bgTex,
-          leftWidth:    0,
-          topHeight:    CAP,
-          rightWidth:   0,
-          bottomHeight: CAP,
-          width:        barW,
-          height:       barH,
-        });
-        bg.position.set(barX, barY);
-        c.addChild(bg);
-      }
-
-      // Fill (green) — NineSlice, starts full height, shrinks + shifts down on damage
-      if (fillTex) {
-        const fill = new NineSliceSprite({
-          texture:      fillTex,
-          leftWidth:    0,
-          topHeight:    CAP,
-          rightWidth:   0,
-          bottomHeight: CAP,
-          width:        barW,
-          height:       barH,
-        });
-        fill.position.set(barX, barY);
-        fill.label = 'health-bar-fill';
-        c.addChild(fill);
-      }
-
-      // Border frame rendered ON TOP of fill — keeps crisp outline at all health levels
-      if (borderTex) {
-        const border = new NineSliceSprite({
-          texture:      borderTex,
-          leftWidth:    0,
-          topHeight:    CAP,
-          rightWidth:   0,
-          bottomHeight: CAP,
-          width:        barW,
-          height:       barH,
-        });
-        border.position.set(barX, barY);
-        border.label = 'health-bar-border';
-        c.addChild(border);
-      }
-    }
+    // Per-window health bars removed — replaced by centralized HealthDashboard (desk-smasher-kyx)
 
     // Close button — scaled proportionally to window size, top-right corner.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);

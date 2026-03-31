@@ -29,7 +29,7 @@
  *   - RebuildCycle (animated fade-to-white transition between rebuilds)
  *   - Input blocked during transitions (no hits against half-built desktop)
  */
-import { Application, Text, TextStyle, Container, Assets, NineSliceSprite, Sprite, Texture } from 'pixi.js';
+import { Application, Text, TextStyle, Container, Assets, NineSliceSprite, Texture } from 'pixi.js';
 import { SafetyLimiter } from './core/safety-limiter';
 import { InputManager } from './core/input/input-manager';
 import { ParentLock } from './core/input/parent-lock';
@@ -48,7 +48,8 @@ import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
-import { TilePanelBuilder, ADV_PANEL_DAMAGED, ADV_PROGRESS_BORDER_GREEN_PATH, ADV_PROGRESS_BORDER_RED_PATH } from './ui/tile-panel';
+import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
+import { HealthDashboard } from './ui/health-dashboard';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -74,6 +75,7 @@ export class DeskSmasherApp {
   private rebuildCycle!: RebuildCycle;
   private toolIndicator!: ToolIndicator;
   private tilePanelBuilder!: TilePanelBuilder;
+  private healthDashboard!: HealthDashboard;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -166,6 +168,12 @@ export class DeskSmasherApp {
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
 
+    // Health dashboard — centralized health bars replacing per-window health bars.
+    // Must come after TilePanelBuilder.preload() (reuses preloaded SVG textures).
+    // Implements: health-dashboard.md — centralized health display.
+    this.healthDashboard = new HealthDashboard(uiLayer, this.app.screen.width, this.app.screen.height);
+    this.healthDashboard.build(this.desktop.elements);
+
     // 12. Sprint 3 systems (in dependency order)
 
     // Mouse trail sits between desktop and particles in z-order; attaches to stage
@@ -205,6 +213,9 @@ export class DeskSmasherApp {
         this.particles.clear();
         this.spriteParticles.clear();
         this.mouseTools.clearTrails();
+        // Reset dashboard to full health for the new desktop.
+        // Implements: health-dashboard.md — bars reset to 100% on desktop rebuild.
+        this.healthDashboard.build(this.desktop.elements);
       },
       this.safetyLimiter,
     );
@@ -456,9 +467,9 @@ export class DeskSmasherApp {
       const damageSet = DeskSmasherApp.TOOL_DAMAGE_PARTICLES[toolName] || 'dirt';
       this.spriteParticles.emit(cx, cy, 3, damageSet as import('./vfx/sprite-particles').ParticleSet);
 
-      // Live health bar update — depletes bar and swaps to red below 30% health.
-      // Implements: desk-smasher-6fa — live health bar on window panels.
-      this._updateHealthBar(element, container);
+      // Update centralized health dashboard.
+      // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
+      this.healthDashboard.onDamage(this.desktop.elements);
 
       // Damaged panel swap — when a window drops below 50% health, replace its
       // NineSliceSprite panel (child 0) with the cracked brown damaged variant.
@@ -503,62 +514,12 @@ export class DeskSmasherApp {
       applyProgressiveDamage(element, container);
       // Sprite-based damage hit: dirt chunks for tactile impact feel
       this.spriteParticles.emit(cx, cy, 3, 'dirt');
-      // Live health bar update.
-      // Implements: desk-smasher-6fa — live health bar on window panels.
-      this._updateHealthBar(element, container);
+      // Update centralized health dashboard.
+      // Implements: health-dashboard.md — aggregate health bars replace per-window bars.
+      this.healthDashboard.onDamage(this.desktop.elements);
     }
 
     this.desktop.applyImpulse(element);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Desktop lifecycle helpers
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Update the health-bar-fill sprite inside a window container to reflect the
-   * element's current health ratio. Swaps the texture from green to red once
-   * health drops to 30% or below. No-ops silently for non-window element types.
-   *
-   * Implements: desk-smasher-6fa — live health bar on window panels.
-   *
-   * @param element   - The DesktopElement that was just damaged.
-   * @param container - The Container holding that element's sprites.
-   */
-  private _updateHealthBar(
-    element: import('./types').DesktopElement,
-    container: Container,
-  ): void {
-    if (element.type !== 'window') return;
-    const fill = container.getChildByLabel('health-bar-fill', true);
-    if (!fill || !(fill instanceof NineSliceSprite)) return;
-
-    const healthRatio = Math.max(0, element.health / element.maxHealth);
-
-    // NineSliceSprite does not support anchor, so simulate bottom-aligned depletion
-    // by shrinking height and pushing Y down to keep the bottom edge fixed.
-    const fullH = element.height - 24; // matches construction in tile-panel.ts
-    const barY  = 12;                  // matches construction in tile-panel.ts
-    const MIN_H = 20;                  // keep caps visible even at near-zero health
-    const newH  = Math.max(MIN_H, fullH * healthRatio);
-    fill.height = newH;
-    fill.y      = barY + (fullH - newH); // push down so fill stays bottom-aligned
-
-    // Swap fill texture and border frame to red when health drops to 30% or below.
-    if (healthRatio <= 0.3) {
-      const redFillTex   = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_red.svg');
-      const redBorderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_RED_PATH);
-      if (redFillTex) fill.texture = redFillTex;
-      const border = container.getChildByLabel('health-bar-border', true);
-      if (border instanceof NineSliceSprite && redBorderTex) border.texture = redBorderTex;
-    } else {
-      // Ensure green textures are restored (e.g. after a rebuild)
-      const greenFillTex   = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_green.svg');
-      const greenBorderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_GREEN_PATH);
-      if (greenFillTex) fill.texture = greenFillTex;
-      const border = container.getChildByLabel('health-bar-border', true);
-      if (border instanceof NineSliceSprite && greenBorderTex) border.texture = greenBorderTex;
-    }
   }
 
   /**
@@ -587,6 +548,7 @@ export class DeskSmasherApp {
       if (!this.app) return;
       this.desktop.resize(this.app.screen.width, this.app.screen.height);
       this.toolIndicator.resize(this.app.screen.width, this.app.screen.height);
+      this.healthDashboard.resize(this.desktop.elements, this.app.screen.width, this.app.screen.height);
       this.syncBackground();
     }, RESIZE_DEBOUNCE_MS);
   }
