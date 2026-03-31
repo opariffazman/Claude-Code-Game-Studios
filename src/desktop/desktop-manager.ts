@@ -520,8 +520,17 @@ export class DesktopManager {
   }
 
   private buildTaskbar(): void {
-    const taskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT;
-    const y = this.screenH - taskbarH;
+    // Scale taskbar height proportionally to viewport
+    const baseTaskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT; // 48px baseline
+    const taskbarScale = this.screenH / 768; // 1.0 at 768px, scales up/down
+    const taskbarH = Math.round(baseTaskbarH * Math.max(0.5, Math.min(1.5, taskbarScale)));
+
+    // Derived proportional values
+    const btnSize = Math.round(taskbarH * 0.833); // ~40px at 48px taskbar
+    const btnPad = Math.round(taskbarH * 0.083);  // ~4px at 48px taskbar
+    const clockFontSize = Math.round(taskbarH * 0.292); // ~14px at 48px taskbar
+    const clockRightPad = Math.round(taskbarH * 1.25); // ~60px at 48px taskbar
+    const clockY = Math.round((taskbarH - clockFontSize) / 2);
 
     let c: Container;
     let gfx: Graphics | null = null;
@@ -543,24 +552,24 @@ export class DesktopManager {
         gfx = bar;
       }
 
-      // Round brown start button.
+      // Round brown start button — scaled to taskbarH.
       const startBtn = this._tilePanelBuilder.buildStartButton();
       if (startBtn) {
-        startBtn.position.set(4, 4);
-        startBtn.width = 40;
-        startBtn.height = 40;
+        startBtn.position.set(btnPad, btnPad);
+        startBtn.width = btnSize;
+        startBtn.height = btnSize;
         c.addChild(startBtn);
       } else {
         const fallbackBtn = new Graphics()
-          .roundRect(4, 4, 40, 40, 6)
+          .roundRect(btnPad, btnPad, btnSize, btnSize, Math.round(btnSize * 0.15))
           .fill(0x8b5e3c);
         c.addChild(fallbackBtn);
       }
 
-      // Clock text — same as factory version.
-      const clockStyle = new TextStyle({ fontSize: 14, fill: 0xffffff, fontFamily: 'monospace' });
+      // Clock text — font size proportional to taskbarH.
+      const clockStyle = new TextStyle({ fontSize: clockFontSize, fill: 0xffffff, fontFamily: 'monospace' });
       const clock = new Text({ text: '12:00', style: clockStyle });
-      clock.position.set(this.screenW - 60, 14);
+      clock.position.set(this.screenW - clockRightPad, clockY);
       c.addChild(clock);
     } else {
       // No tile builder — delegate to element factory.
@@ -569,7 +578,7 @@ export class DesktopManager {
       gfx = result.gfx;
     }
 
-    c.position.set(0, y);
+    c.position.set(0, this.screenH - taskbarH);
     this.container.addChild(c);
     void gfx; // gfx accessible via container if needed later
 
@@ -581,7 +590,7 @@ export class DesktopManager {
       maxHealth: DESKTOP_CONFIG.HEALTH.taskbar,
       destroyed: false,
       x: 0,
-      y,
+      y: this.screenH - taskbarH,
       width: this.screenW,
       height: taskbarH,
       vx: 0,
@@ -610,7 +619,7 @@ export class DesktopManager {
     const SPRITE_SCALE = baseScale * 0.6;
 
     const margin = 80;
-    const taskbarH = DESKTOP_CONFIG.TASKBAR_HEIGHT;
+    const taskbarH = Math.round(DESKTOP_CONFIG.TASKBAR_HEIGHT * Math.max(0.5, Math.min(1.5, this.screenH / 768)));
     const MIN_SPACING = 60;
 
     for (let i = 0; i < iconCount; i++) {
