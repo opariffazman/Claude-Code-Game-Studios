@@ -58,12 +58,12 @@ export const DESKTOP_CONFIG = {
   WIDGETS: { min: 1, max: 3 },
   /** Health values per element type */
   HEALTH: {
-    icon: 3,
-    window: 5,
-    taskbar: 8,
-    sticky: 2,
-    notification: 2,
-    widget: 3,
+    icon: 6,
+    window: 10,
+    taskbar: 16,
+    sticky: 4,
+    notification: 4,
+    widget: 6,
   },
   /** Impulse physics */
   IMPULSE_FORCE_MIN: 80,
