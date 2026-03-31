@@ -3,10 +3,13 @@
  *
  * Panel tiles (tile_0000–tile_0003) are 32×32 with ~4px visible borders.
  * BORDER_INSET of 8px gives the nine-slice room to keep those borders crisp.
- * Close button is the adventure pack's standalone button_red_close.png.
  *
- * Adventure panels (animal-farm theme): uses Kenney adventure pack 64×64 panels
- * with ~8px border insets. Grid-paper interior is inset from the panel edges.
+ * Adventure panels (animal-farm theme): uses Kenney adventure pack SVGs loaded
+ * at resolution 4 for crisp rendering on any display. SVG viewBox is 64×64;
+ * rasterised texture is 256×256. Border is ~4px in viewBox = 16px in texture.
+ * SVG_BORDER_INSET = 16 keeps adventure panel borders pixel-perfect.
+ *
+ * Implements: desk-smasher-eqh — damaged panel variants for destruction progression.
  */
 import { Assets, Container, Graphics, NineSliceSprite, Sprite, Texture } from 'pixi.js';
 
@@ -21,35 +24,43 @@ const PANEL_TILES: Record<PanelStyle, string> = {
   dark:  `${TILE_DIR}/tile_0003.png`,
 };
 
+const SVG_DIR = 'assets/kenney/ui/adventure/svg';
+
 /** Adventure pack panel paths keyed by theme name. */
 const ADV_PANELS: Record<string, string> = {
-  'animal-farm': 'assets/kenney/ui/adventure/panel_brown_corners_b.png',
+  'animal-farm': `${SVG_DIR}/panel_brown_corners_b.svg`,
 };
 
-const ADV_GRID_PAPER = 'assets/kenney/ui/adventure/panel_grid_paper.png';
-const ADV_TASKBAR    = 'assets/kenney/ui/adventure/panel_brown_dark.png';
-const ADV_ROUND_BTN  = 'assets/kenney/ui/adventure/round_brown.png';
+const ADV_GRID_PAPER = `${SVG_DIR}/panel_grid_paper.svg`;
+const ADV_TASKBAR    = `${SVG_DIR}/panel_brown_dark.svg`;
+const ADV_ROUND_BTN  = `${SVG_DIR}/round_brown.svg`;
 
-/** Border inset for NineSliceSprite — pixels from each edge kept unscaled.
- *  Using Double (2x/128px) adventure PNGs, so inset is 16px (was 8 for 64px). */
-const BORDER_INSET = 16;
+/** Border inset for pixel-tile NineSliceSprite — pixels from each edge kept unscaled. */
+const BORDER_INSET = 8;
+
+/**
+ * Border inset for adventure SVG NineSliceSprite.
+ * SVG viewBox is 64px; loaded at resolution 4 → 256px texture.
+ * Border is ~4px in viewBox → 16px in the rasterised texture.
+ */
+const SVG_BORDER_INSET = 16;
 
 /** Adventure pack close button — standalone sprite, render at native size. */
-const CLOSE_BTN = 'assets/kenney/ui/adventure/close_red.png';
+const CLOSE_BTN = `${SVG_DIR}/button_red_close.svg`;
 
 /** Damaged panel variant — swapped in when a window drops below 50% health.
  *  Implements: desk-smasher-eqh — damaged panel variants for destruction progression. */
-export const ADV_PANEL_DAMAGED = 'assets/kenney/ui/adventure/panel_brown_damaged.png';
+export const ADV_PANEL_DAMAGED = `${SVG_DIR}/panel_brown_damaged.svg`;
 
 /** Adventure progress bar sprites — background track and green fill bar. */
-const ADV_PROGRESS_BG   = 'assets/kenney/ui/adventure/progress_transparent.png';
-const ADV_PROGRESS_FILL = 'assets/kenney/ui/adventure/progress_green.png';
+const ADV_PROGRESS_BG   = `${SVG_DIR}/progress_transparent.svg`;
+const ADV_PROGRESS_FILL = `${SVG_DIR}/progress_green.svg`;
 
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
-const ADV_BANNER_MODERN  = 'assets/kenney/ui/adventure/banner_modern.png';
-const ADV_BANNER_HANGING = 'assets/kenney/ui/adventure/banner_hanging.png';
+const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
+const ADV_BANNER_HANGING = `${SVG_DIR}/banner_hanging.svg`;
 
-/** Adventure checkbox sprites — used as tray status indicators in the taskbar. */
+/** Adventure checkbox sprites — no SVG equivalents; keep as PNGs. */
 export const ADV_CHECKBOX_CHECKED = 'assets/kenney/ui/adventure/checkbox_brown_checked.png';
 export const ADV_CHECKBOX_EMPTY   = 'assets/kenney/ui/adventure/checkbox_brown_empty.png';
 
@@ -57,8 +68,7 @@ export class TilePanelBuilder {
   private _ready = false;
 
   async preload(): Promise<void> {
-    await Assets.load([
-      ...Object.values(PANEL_TILES),
+    const svgPaths = [
       ...Object.values(ADV_PANELS),
       ADV_GRID_PAPER,
       ADV_TASKBAR,
@@ -69,9 +79,24 @@ export class TilePanelBuilder {
       ADV_PANEL_DAMAGED,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
+    ];
+
+    // Register each SVG with a resolution of 4 so PixiJS rasterises at 256×256
+    // (64px viewBox × 4). This gives crisp rendering at any display size without
+    // nearest-neighbour filtering.
+    for (const path of svgPaths) {
+      Assets.add({ alias: path, src: path, data: { resolution: 4 } });
+    }
+
+    // Load PNG pixel tiles normally (nearest-neighbour handles crispness for them).
+    // Load all SVGs by alias — the resolution hint was registered above.
+    await Assets.load([
+      ...Object.values(PANEL_TILES),
       ADV_CHECKBOX_CHECKED,
       ADV_CHECKBOX_EMPTY,
+      ...svgPaths,
     ]);
+
     this._ready = true;
   }
 
@@ -81,7 +106,7 @@ export class TilePanelBuilder {
    * Build a window: NineSlice panel + optional grid-paper interior + close button.
    *
    * When theme has a matching adventure panel (e.g. 'animal-farm'), the adventure
-   * panel texture is used instead of pixel tiles. A grid-paper inset is then
+   * SVG panel texture is used instead of pixel tiles. A grid-paper inset is then
    * added inside the window to give it a notebook-paper interior.
    *
    * @param style - PanelStyle for pixel-tile fallback.
@@ -93,17 +118,22 @@ export class TilePanelBuilder {
     const c = new Container();
     c.label = `window-${style}`;
 
+    const isAdventure = theme != null && ADV_PANELS[theme] != null;
+
     // Select panel texture: adventure pack takes priority over pixel tiles.
-    const panelPath = (theme && ADV_PANELS[theme]) ? ADV_PANELS[theme] : PANEL_TILES[style];
+    const panelPath = isAdventure ? ADV_PANELS[theme!] : PANEL_TILES[style];
+    const inset = isAdventure ? SVG_BORDER_INSET : BORDER_INSET;
     const panelTex = Assets.get<Texture>(panelPath);
     if (panelTex) {
-      panelTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+      if (!isAdventure) {
+        panelTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+      }
       const panel = new NineSliceSprite({
         texture:      panelTex,
-        leftWidth:    BORDER_INSET,
-        topHeight:    BORDER_INSET,
-        rightWidth:   BORDER_INSET,
-        bottomHeight: BORDER_INSET,
+        leftWidth:    inset,
+        topHeight:    inset,
+        rightWidth:   inset,
+        bottomHeight: inset,
         width:        w,
         height:       h,
       });
@@ -111,16 +141,15 @@ export class TilePanelBuilder {
     }
 
     // Title bar strip — dark brown bar just below the top border, adventure themes only.
-    if (theme && ADV_PANELS[theme]) {
+    if (isAdventure) {
       const titleBarTex = Assets.get<Texture>(ADV_TASKBAR);
       if (titleBarTex) {
-        titleBarTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
         const titleBar = new NineSliceSprite({
           texture:      titleBarTex,
-          leftWidth:    BORDER_INSET,
-          topHeight:    BORDER_INSET,
-          rightWidth:   BORDER_INSET,
-          bottomHeight: BORDER_INSET,
+          leftWidth:    SVG_BORDER_INSET,
+          topHeight:    SVG_BORDER_INSET,
+          rightWidth:   SVG_BORDER_INSET,
+          bottomHeight: SVG_BORDER_INSET,
           width:        w - 8,
           height:       28,
         });
@@ -130,7 +159,7 @@ export class TilePanelBuilder {
     }
 
     // Faux window content — text lines and a progress bar, adventure themes only.
-    if (theme && ADV_PANELS[theme]) {
+    if (isAdventure) {
       const contentStartY = 65; // below title bar + grid paper margin
       const contentX = 20;
       const contentMaxW = w - 40;
@@ -156,9 +185,7 @@ export class TilePanelBuilder {
       const bgTex = Assets.get<Texture>(ADV_PROGRESS_BG);
       const fillTex = Assets.get<Texture>(ADV_PROGRESS_FILL);
       if (bgTex && fillTex) {
-        bgTex.source.scaleMode = 'nearest';   // Crisp pixel art, no bilinear blur
-        fillTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
-        // Background track
+        // SVGs rasterised at 4x — bilinear is fine, nearest not needed
         const bg = new Sprite(bgTex);
         bg.position.set(contentX, barY);
         bg.width = barW;
@@ -176,7 +203,7 @@ export class TilePanelBuilder {
     // Close button — scaled proportionally to window size, top-right corner.
     const closeTex = Assets.get<Texture>(CLOSE_BTN);
     if (closeTex) {
-      closeTex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+      // SVG rasterised at 4x — no nearest-neighbour needed
       const btn = new Sprite(closeTex);
       btn.anchor.set(1, 0);
       // Scale close button proportionally to window size
@@ -216,13 +243,13 @@ export class TilePanelBuilder {
   buildTaskbarBg(w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(ADV_TASKBAR);
     if (!tex) return null;
-    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+    // SVG rasterised at 4x — no nearest-neighbour needed
     return new NineSliceSprite({
       texture:      tex,
-      leftWidth:    BORDER_INSET,
-      topHeight:    BORDER_INSET,
-      rightWidth:   BORDER_INSET,
-      bottomHeight: BORDER_INSET,
+      leftWidth:    SVG_BORDER_INSET,
+      topHeight:    SVG_BORDER_INSET,
+      rightWidth:   SVG_BORDER_INSET,
+      bottomHeight: SVG_BORDER_INSET,
       width:        w,
       height:       h,
     });
@@ -235,7 +262,7 @@ export class TilePanelBuilder {
   buildStartButton(): Sprite | null {
     const tex = Assets.get<Texture>(ADV_ROUND_BTN);
     if (!tex) return null;
-    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+    // SVG rasterised at 4x — no nearest-neighbour needed
     return new Sprite(tex);
   }
 
@@ -249,13 +276,13 @@ export class TilePanelBuilder {
   buildStickyBg(w: number, h: number): NineSliceSprite | null {
     const tex = Assets.get<Texture>(ADV_GRID_PAPER);
     if (!tex) return null;
-    tex.source.scaleMode = 'nearest'; // Crisp pixel art, no bilinear blur
+    // SVG rasterised at 4x — no nearest-neighbour needed
     return new NineSliceSprite({
       texture:      tex,
-      leftWidth:    BORDER_INSET,
-      topHeight:    BORDER_INSET,
-      rightWidth:   BORDER_INSET,
-      bottomHeight: BORDER_INSET,
+      leftWidth:    SVG_BORDER_INSET,
+      topHeight:    SVG_BORDER_INSET,
+      rightWidth:   SVG_BORDER_INSET,
+      bottomHeight: SVG_BORDER_INSET,
       width:        w,
       height:       h,
     });
