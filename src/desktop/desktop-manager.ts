@@ -30,7 +30,7 @@ import { ElementFactory } from './element-factory';
 import {
   resolveZone,
   generateIconGrid,
-  generateWindowCascade,
+  generateWindowTiled,
   generateNotifStack,
   validatePlacements,
 } from './layout-resolver';
@@ -830,28 +830,28 @@ export class DesktopManager {
     /**
      * Implements: design/gdd/desktop-layout.md §3 — Window Placement Rules
      * Implements: docs/architecture/layout-generation-algorithm.md §3
+     * Fixes: desk-smasher-9fp — replaced cascade with tiled placement so each
+     *   window occupies its own non-overlapping slot and is fully visible.
      *
-     * Windows are placed using a cascade pattern in the center-right zone.
-     * Count is capped at 3. Each window gets an independent random size.
-     * Z-order: first window at back, last window at front (added in order).
+     * Layout grid:
+     *   count=1 → full zone
+     *   count=2 → 2 columns, side by side
+     *   count=3 → 2×2 grid, bottom-right slot empty
+     *
+     * Count is capped at 3. Z-order: first window at back, last at front.
      */
     const cappedCount = Math.min(count, 3);
     const titles = shuffle(WINDOW_TITLES).slice(0, cappedCount);
 
-    // Resolve window zone and compute min/max dimensions from LAYOUT_CONFIG percentages.
+    // Resolve window zone — tiled placement fills slots, so min/max size
+    // percentages are no longer used for sizing (slot dimensions determine size).
     const windowZone = resolveZone(LAYOUT_CONFIG.WINDOW_ZONE, this.screenW, this.screenH);
-    const minW = Math.round(LAYOUT_CONFIG.WINDOW_MIN_W_PCT * this.screenW);
-    const maxW = Math.round(LAYOUT_CONFIG.WINDOW_MAX_W_PCT * this.screenW);
-    const minH = Math.round(LAYOUT_CONFIG.WINDOW_MIN_H_PCT * this.screenH);
-    const maxH = Math.round(LAYOUT_CONFIG.WINDOW_MAX_H_PCT * this.screenH);
 
-    const placements = generateWindowCascade(
+    const TILED_PADDING = 15; // px gap between slot edge and window edge
+    const placements = generateWindowTiled(
       windowZone,
       cappedCount,
-      minW, maxW,
-      minH, maxH,
-      LAYOUT_CONFIG.WINDOW_CASCADE_X,
-      LAYOUT_CONFIG.WINDOW_CASCADE_Y,
+      TILED_PADDING,
       LAYOUT_CONFIG.WINDOW_JITTER,
     );
 

@@ -107,27 +107,82 @@ export function generateIconGrid(
 }
 
 // ---------------------------------------------------------------------------
-// Window cascade
+// Window tiled placement
 // ---------------------------------------------------------------------------
 
 /**
- * Generates `count` window placements using a cascade pattern within `zone`.
+ * Generates `count` window placements using a tiled slot grid within `zone`.
  *
- * Algorithm (implements layout-generation-algorithm.md §3):
- *   1. Pick a random base position in the top-left quadrant of the zone.
- *   2. Each subsequent window is offset by (cascadeX, cascadeY) + jitter.
- *   3. Each window gets an independent random size within [minW,maxW] × [minH,maxH].
- *   4. Position is clamped so no window extends beyond zone bounds.
+ * Implements: design/gdd/desktop-layout.md §3 — Window Placement Rules
+ * Fixes: desk-smasher-9fp — windows must never overlap; each must be fully visible.
  *
- * @param zone      - Resolved window zone in pixels.
- * @param count     - Number of windows (typically 2-3).
- * @param minW      - Minimum window width in px.
- * @param maxW      - Maximum window width in px.
- * @param minH      - Minimum window height in px.
- * @param maxH      - Maximum window height in px.
- * @param cascadeX  - Horizontal cascade offset per window in px.
- * @param cascadeY  - Vertical cascade offset per window in px.
- * @param jitter    - Max random position jitter in px.
+ * Algorithm:
+ *   1. Divide the zone into a cols × rows grid where cols = min(count, 2) and
+ *      rows = ceil(count / cols).  This gives:
+ *        count=1 → 1×1  (full zone)
+ *        count=2 → 2×1  (side by side)
+ *        count=3 → 2×2  (2 on top, 1 bottom-left — bottom-right slot is empty)
+ *   2. Each window fills its slot minus `padding` on every side.
+ *   3. A small random jitter (±jitter/2 px) is applied for organic feel.
+ *      Jitter is clamped so the window cannot leave its slot.
+ *   4. Window size is the slot interior — designers control apparent size by
+ *      tuning LAYOUT_CONFIG.WINDOW_ZONE and the padding constant.
+ *
+ * Overlap guarantee: slots are non-overlapping by construction; jitter is
+ * clamped to stay within the slot, so no two windows ever overlap.
+ *
+ * @param zone    - Resolved window zone in pixels.
+ * @param count   - Number of windows (1-3 supported; capped at 3).
+ * @param padding - Gap between slot edge and window edge in px (default 15).
+ * @param jitter  - Max random position offset in px (applied to top-left corner).
+ */
+export function generateWindowTiled(
+  zone: ResolvedZone,
+  count: number,
+  padding: number,
+  jitter: number,
+): Placement[] {
+  const cappedCount = Math.min(count, 3);
+  const cols = cappedCount <= 2 ? cappedCount : 2;
+  const rows = Math.ceil(cappedCount / cols);
+
+  const slotW = zone.width  / cols;
+  const slotH = zone.height / rows;
+
+  // Max safe jitter: keep window origin inside its slot interior.
+  const maxJitter = Math.min(jitter, slotW / 4, slotH / 4);
+
+  const placements: Placement[] = [];
+  for (let i = 0; i < cappedCount; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    const w = Math.round(slotW - padding * 2);
+    const h = Math.round(slotH - padding * 2);
+
+    const jx = (Math.random() - 0.5) * maxJitter;
+    const jy = (Math.random() - 0.5) * maxJitter;
+
+    const slotLeft = zone.left + col * slotW;
+    const slotTop  = zone.top  + row  * slotH;
+
+    const rawX = slotLeft + padding + jx;
+    const rawY = slotTop  + padding + jy;
+
+    // Clamp within slot to guarantee no overlap even at edge cases.
+    const x = Math.round(clamp(rawX, slotLeft + padding, slotLeft + slotW - padding - w));
+    const y = Math.round(clamp(rawY, slotTop  + padding, slotTop  + slotH - padding - h));
+
+    placements.push({ x, y, w, h });
+  }
+
+  return placements;
+}
+
+/**
+ * @deprecated Use generateWindowTiled — cascade placement causes overlap (desk-smasher-9fp).
+ *
+ * Kept for reference; no longer called by desktop-manager.
  */
 export function generateWindowCascade(
   zone: ResolvedZone,
@@ -140,7 +195,6 @@ export function generateWindowCascade(
   cascadeY: number,
   jitter: number,
 ): Placement[] {
-  // Random base in top-left 25% × 20% of zone
   const baseX = zone.left + zone.width  * (0.05 + Math.random() * 0.20);
   const baseY = zone.top  + zone.height * (0.05 + Math.random() * 0.15);
 
@@ -155,7 +209,6 @@ export function generateWindowCascade(
     const rawX = baseX + i * cascadeX + jx;
     const rawY = baseY + i * cascadeY + jy;
 
-    // Clamp so window stays within zone bounds
     const x = Math.round(clamp(rawX, zone.left, zone.right  - w));
     const y = Math.round(clamp(rawY, zone.top,  zone.bottom - h));
 
@@ -220,7 +273,7 @@ export function generateNotifStack(
  * Rules:
  *   - Icon-icon: reject if distance between centers < min(w,h) * 0.6.
  *     Repair: nudge in random direction by overlap_distance + 10px, clamp to zone.
- *   - Window-window: ALLOW (cascade overlap is intentional).
+ *   - Window-window: ALLOW (tiled placement guarantees no overlap by construction).
  *   - Taskbar: clamp element so it does not extend below taskbarY.
  *   - Maximum 1 repair iteration per element.
  *
