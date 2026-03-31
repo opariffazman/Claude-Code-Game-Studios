@@ -76,6 +76,59 @@ export const DESKTOP_CONFIG = {
   TASKBAR_HEIGHT: 48,
 } as const;
 
+/**
+ * Zone-based desktop layout configuration.
+ * Implements: design/gdd/desktop-layout.md and docs/architecture/layout-generation-algorithm.md
+ *
+ * All zone x/y/w/h values are fractions of the viewport dimensions (0.0 - 1.0).
+ * CASCADE/JITTER values are in pixels.
+ */
+export const LAYOUT_CONFIG = {
+  /** Left-side icon column zone. */
+  ICON_ZONE:   { x: 0,    y: 0,    w: 0.18, h: 0.88, padding: 10 },
+  /** Central area for application windows. */
+  WINDOW_ZONE: { x: 0.20, y: 0.05, w: 0.55, h: 0.80, padding: 10 },
+  /** Top-right notification toast area. */
+  NOTIF_ZONE:  { x: 0.78, y: 0.02, w: 0.20, h: 0.50, padding: 5  },
+
+  /**
+   * Icon columns: 2 for viewports < 1200px wide, 3 for >= 1200px.
+   * The buildIcons() method applies this threshold dynamically.
+   */
+  ICON_COLS_SMALL: 2,   // viewport width < 1200
+  ICON_COLS_LARGE: 3,   // viewport width >= 1200
+
+  /** Grid cell dimensions as fractions of viewport. */
+  ICON_CELL_W_PCT: 0.075,  // cell width  = screenW * this
+  ICON_CELL_H_PCT: 0.12,   // cell height = screenH * this
+
+  /** Max random offset applied to each icon from its grid cell center (px). */
+  ICON_JITTER: 5,
+
+  /** Icon count range per desktop generation (subset of theme pool). */
+  ICON_COUNT_MIN: 8,
+  ICON_COUNT_MAX: 12,
+
+  /** Horizontal cascade offset per additional window (px). */
+  WINDOW_CASCADE_X: 40,
+  /** Vertical cascade offset per additional window (px). */
+  WINDOW_CASCADE_Y: 30,
+  /** Max random position jitter per window (px). */
+  WINDOW_JITTER: 20,
+
+  /** Window size range as fractions of viewport. */
+  WINDOW_MIN_W_PCT: 0.18,
+  WINDOW_MAX_W_PCT: 0.28,
+  WINDOW_MIN_H_PCT: 0.22,
+  WINDOW_MAX_H_PCT: 0.35,
+
+  /** Vertical gap between stacked notification banners (px). */
+  NOTIF_GAP: 10,
+
+  /** Notification banner width as fraction of viewport width. */
+  NOTIF_WIDTH_PCT: 0.15,
+} as const;
+
 export const SCREEN_SHAKE_CONFIG = {
   MAX_INTENSITY: 15,
   DECAY: 0.9,

@@ -20,13 +20,20 @@
 import { Assets, Container, Graphics, NineSliceSprite, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { ThemeLoader } from '../systems/theme-loader';
 import type { TilePanelBuilder, PanelStyle } from '../ui/tile-panel';
-import { DESKTOP_CONFIG } from '../config';
+import { DESKTOP_CONFIG, LAYOUT_CONFIG } from '../config';
 import {
   WALLPAPER_PALETTES, ICON_LABELS, WINDOW_TITLES, STICKY_TEXTS, NOTIF_TEXTS,
   ICON_COLORS, TITLEBAR_COLORS, STICKY_COLORS,
   rand, randInt, pick, shuffle,
 } from './element-types';
 import { ElementFactory } from './element-factory';
+import {
+  resolveZone,
+  generateIconGrid,
+  generateWindowCascade,
+  generateNotifStack,
+  validatePlacements,
+} from './layout-resolver';
 import type { DesktopElement, ElementType, WallpaperPalette } from '../types';
 import type { Theme } from '../systems/theme-system';
 
@@ -508,8 +515,10 @@ export class DesktopManager {
     this._wallpaperColor = palette.bg;
     this.buildWallpaper(palette);
     this.buildTaskbar();
-    this.buildIcons(randInt(DESKTOP_CONFIG.ICONS.min, DESKTOP_CONFIG.ICONS.max));
-    this.buildWindows(randInt(DESKTOP_CONFIG.WINDOWS.min, DESKTOP_CONFIG.WINDOWS.max));
+    // Implements: desktop-layout.md §2 — 8-12 icons from theme pool (not all frames).
+    this.buildIcons(randInt(LAYOUT_CONFIG.ICON_COUNT_MIN, LAYOUT_CONFIG.ICON_COUNT_MAX));
+    // Implements: desktop-layout.md §3 — 2-3 windows, cascade placement.
+    this.buildWindows(randInt(2, 3));
     // desk-smasher-f4k: stickies removed — don't fit the animal farm theme.
     // this.buildStickies(randInt(DESKTOP_CONFIG.STICKIES.min, DESKTOP_CONFIG.STICKIES.max));
 
@@ -624,81 +633,97 @@ export class DesktopManager {
   }
 
   private buildIcons(count: number): void {
-    // When sprites are available show ALL frames; otherwise use the configured min/max range.
-    // Implements: desk-smasher-1zl — show all 30 animals when sprite theme is active.
+    /**
+     * Implements: design/gdd/desktop-layout.md §2 — Icon Grid Rules
+     * Implements: docs/architecture/layout-generation-algorithm.md §2
+     *
+     * Icons are placed in a zone-based grid on the left side of the screen
+     * (ICON_ZONE). 8-12 icons are selected from the theme pool per generation
+     * using a Fisher-Yates shuffle. No initial rotation — rotation is earned
+     * through smashing (damage wobble).
+     */
     const useSprites = this._themeLoader?.isReady ?? false;
-    const iconCount = useSprites
-      ? this._themeLoader!.currentTheme.iconFrames.length
-      : count;
 
-    // Implements: desk-smasher-qnn — scatter icons randomly across the full desktop.
+    // Select 8-12 icons from the theme pool (not all frames).
+    // Implements: desktop-layout.md §8 — "Which icons appear" is random.
+    const iconCount = Math.min(
+      count,
+      useSprites ? this._themeLoader!.currentTheme.iconFrames.length : count,
+    );
+
+    // Shuffle and slice icon labels/frames so each desktop gets a fresh subset.
     const labels = shuffle(ICON_LABELS).slice(0, iconCount);
+    if (useSprites) {
+      // Reset shuffle so getNextIconTexture() returns a freshly shuffled sequence.
+      this._themeLoader!.resetShuffle();
+    }
 
-    // Implements: desk-smasher-377 — scale animals relative to viewport, not fixed pixels.
-    // On a 1920px screen this gives ~0.96 * 0.6 = ~0.48 effective scale; on a 600px screen ~0.3.
+    // Determine icon visual size — derived from sprite scale or fixed fallback.
+    // Implements: desk-smasher-377 — scale animals relative to viewport.
     const baseScale = Math.min(this.screenW, this.screenH) / 1200;
     const SPRITE_SCALE = baseScale * 0.6;
 
-    const margin = 80;
-    const taskbarH = Math.round(DESKTOP_CONFIG.TASKBAR_HEIGHT * Math.max(0.5, Math.min(1.5, this.screenH / 768)));
-    const MIN_SPACING = 60;
+    // Use the first available texture to determine icon dimensions for grid layout.
+    // All icons in a theme have the same natural size, so sampling one is sufficient.
+    let iconW = 64;
+    let iconH = 64;
+    if (useSprites) {
+      const sampleTex = this._themeLoader!.getNextIconTexture();
+      if (sampleTex) {
+        iconW = Math.round(sampleTex.width  * SPRITE_SCALE);
+        iconH = Math.round(sampleTex.height * SPRITE_SCALE);
+      }
+      // Reset shuffle again — we consumed one texture for measurement.
+      this._themeLoader!.resetShuffle();
+    }
 
-    for (let i = 0; i < iconCount; i++) {
+    // Resolve icon zone to pixel coordinates.
+    const cols = this.screenW < 1200
+      ? LAYOUT_CONFIG.ICON_COLS_SMALL
+      : LAYOUT_CONFIG.ICON_COLS_LARGE;
+
+    const iconZone = resolveZone(LAYOUT_CONFIG.ICON_ZONE, this.screenW, this.screenH);
+    const placements = generateIconGrid(
+      iconZone,
+      iconCount,
+      iconW,
+      iconH,
+      cols,
+      LAYOUT_CONFIG.ICON_JITTER,
+    );
+
+    const taskbarH = Math.round(DESKTOP_CONFIG.TASKBAR_HEIGHT * Math.max(0.5, Math.min(1.5, this.screenH / 768)));
+    const taskbarY = this.screenH - taskbarH;
+
+    const validated = validatePlacements(placements, [], [], iconZone, taskbarY);
+
+    for (let i = 0; i < validated.icons.length; i++) {
+      const p = validated.icons[i]!;
       const color = pick(this._activeIconColors);
 
       let displayLabel: string;
       let c: import('pixi.js').Container;
-      let width: number;
-      let height: number;
 
       if (useSprites) {
         const texture = this._themeLoader!.getNextIconTexture();
         if (texture) {
-          // Derive label from the atlas frame name (e.g. "cat" -> "Cat")
           const frames = this._themeLoader!.currentTheme.iconFrames;
           const frameName = frames[i % frames.length] ?? labels[i] ?? `Icon ${i}`;
           displayLabel = frameName.charAt(0).toUpperCase() + frameName.slice(1);
-          // Use sprite's natural dimensions scaled for desktop — hitbox matches visual.
-          const spriteW = Math.round(texture.width * SPRITE_SCALE);
-          const spriteH = Math.round(texture.height * SPRITE_SCALE);
-          width = spriteW;
-          height = spriteH;
-          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, spriteW, spriteH));
+          ({ container: c } = this.factory.createSpriteIcon(texture, displayLabel, p.w, p.h));
         } else {
-          // Atlas loaded but getNextIconTexture returned null — fall back to Graphics icon.
           displayLabel = labels[i] ?? `Icon ${i}`;
-          width = 64;
-          height = 64;
           ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
         }
       } else {
         displayLabel = labels[i] ?? `Icon ${i}`;
-        width = 64;
-        height = 64;
         ({ container: c } = this.factory.createIcon(displayLabel, color, 64));
       }
 
-      // Scatter randomly across the full desktop with overlap retry.
-      // Implements: desk-smasher-qnn — full-desktop icon scatter.
-      let posX = 0;
-      let posY = 0;
-      let attempts = 0;
-      do {
-        posX = margin + Math.random() * (this.screenW - margin * 2 - width);
-        posY = margin + Math.random() * (this.screenH - taskbarH - margin * 2 - height);
-        attempts++;
-      } while (attempts < 10 && this._elements.some(e => {
-        const dx = e.x - posX;
-        const dy = e.y - posY;
-        return Math.sqrt(dx * dx + dy * dy) < MIN_SPACING;
-      }));
-
-      const x = Math.round(posX);
-      const y = Math.round(posY);
-
-      c.position.set(x, y);
-      // Slight random rotation for a playful scattered feel.
-      c.rotation = (Math.random() - 0.5) * 0.3;
+      c.position.set(p.x, p.y);
+      // NO initial rotation — icons start tidy. Rotation happens after hits.
+      // Implements: desktop-layout.md §2 "Visual Treatment".
+      c.rotation = 0;
       this.container.addChild(c);
 
       const el: DesktopElement = {
@@ -708,9 +733,8 @@ export class DesktopManager {
         health: DESKTOP_CONFIG.HEALTH.icon,
         maxHealth: DESKTOP_CONFIG.HEALTH.icon,
         destroyed: false,
-        x, y,
-        width,
-        height,
+        x: p.x, y: p.y,
+        width: p.w, height: p.h,
         vx: 0, vy: 0, rotSpeed: 0,
       };
       this._elements.push(el);
@@ -719,35 +743,55 @@ export class DesktopManager {
   }
 
   private buildWindows(count: number): void {
-    // Implements: desk-smasher-377 — cap at 2-3 windows, smaller size ranges to reduce clutter.
+    /**
+     * Implements: design/gdd/desktop-layout.md §3 — Window Placement Rules
+     * Implements: docs/architecture/layout-generation-algorithm.md §3
+     *
+     * Windows are placed using a cascade pattern in the center-right zone.
+     * Count is capped at 3. Each window gets an independent random size.
+     * Z-order: first window at back, last window at front (added in order).
+     */
     const cappedCount = Math.min(count, 3);
     const titles = shuffle(WINDOW_TITLES).slice(0, cappedCount);
+
+    // Resolve window zone and compute min/max dimensions from LAYOUT_CONFIG percentages.
+    const windowZone = resolveZone(LAYOUT_CONFIG.WINDOW_ZONE, this.screenW, this.screenH);
+    const minW = Math.round(LAYOUT_CONFIG.WINDOW_MIN_W_PCT * this.screenW);
+    const maxW = Math.round(LAYOUT_CONFIG.WINDOW_MAX_W_PCT * this.screenW);
+    const minH = Math.round(LAYOUT_CONFIG.WINDOW_MIN_H_PCT * this.screenH);
+    const maxH = Math.round(LAYOUT_CONFIG.WINDOW_MAX_H_PCT * this.screenH);
+
+    const placements = generateWindowCascade(
+      windowZone,
+      cappedCount,
+      minW, maxW,
+      minH, maxH,
+      LAYOUT_CONFIG.WINDOW_CASCADE_X,
+      LAYOUT_CONFIG.WINDOW_CASCADE_Y,
+      LAYOUT_CONFIG.WINDOW_JITTER,
+    );
 
     // Priority: TilePanelBuilder (tile-based) > ThemeLoader sprite panel > Graphics fallback.
     const windowTexture: Texture | null = this._themeLoader?.getUITexture('windowPanel') ?? null;
     const styles: PanelStyle[] = ['beige', 'brown', 'blue', 'dark'];
 
-    titles.forEach((title, i) => {
-      const w = randInt(Math.round(this.screenW * 0.12), Math.round(this.screenW * 0.20));
-      const h = randInt(Math.round(this.screenH * 0.15), Math.round(this.screenH * 0.25));
-      const x = Math.round(rand(0.18, 0.65) * this.screenW);
-      const y = Math.round(rand(0.05, 0.55) * this.screenH);
+    placements.forEach((p, i) => {
+      const title = titles[i] ?? `Window ${i}`;
       const titleColor = this._activeTitlebarColors[i % this._activeTitlebarColors.length];
 
       let c: Container;
 
       if (this._tilePanelBuilder?.isReady) {
-        // Use tile panels — each window gets a cycling PanelStyle.
         const style = styles[i % styles.length];
-        const windowContainer = this._tilePanelBuilder.buildWindow(style, w, h);
-        windowContainer.position.set(x, y);
+        const windowContainer = this._tilePanelBuilder.buildWindow(style, p.w, p.h);
+        windowContainer.position.set(p.x, p.y);
         c = windowContainer;
       } else if (windowTexture) {
-        c = this._buildSpriteWindow(title, w, h, titleColor, windowTexture);
-        c.position.set(x, y);
+        c = this._buildSpriteWindow(title, p.w, p.h, titleColor, windowTexture);
+        c.position.set(p.x, p.y);
       } else {
-        ({ container: c } = this.factory.createWindow(title, w, h, titleColor));
-        c.position.set(x, y);
+        ({ container: c } = this.factory.createWindow(title, p.w, p.h, titleColor));
+        c.position.set(p.x, p.y);
       }
 
       this.container.addChild(c);
@@ -759,7 +803,7 @@ export class DesktopManager {
         health: DESKTOP_CONFIG.HEALTH.window,
         maxHealth: DESKTOP_CONFIG.HEALTH.window,
         destroyed: false,
-        x, y, width: w, height: h,
+        x: p.x, y: p.y, width: p.w, height: p.h,
         vx: 0, vy: 0, rotSpeed: 0,
       };
       this._elements.push(el);
@@ -860,20 +904,40 @@ export class DesktopManager {
   }
 
   private buildNotifications(count: number): void {
+    /**
+     * Implements: design/gdd/desktop-layout.md §4 — Notification Placement Rules
+     * Implements: docs/architecture/layout-generation-algorithm.md §4
+     *
+     * Notifications stack deterministically in the top-right NOTIF_ZONE.
+     * Right-aligned, top-to-bottom, no randomness — matches real OS notification
+     * behavior and guarantees no overlap.
+     */
     const notifs = shuffle(NOTIF_TEXTS).slice(0, count);
     const bannerTex = this._tilePanelBuilder?.isReady
       ? Assets.get<Texture>('assets/kenney/ui/adventure/banner_modern.png')
       : undefined;
 
-    notifs.forEach((notif, i) => {
-      const bannerScale = this.screenW / 1920;
-      const w = bannerTex ? Math.round(220 * bannerScale) : 220;
-      const h = bannerTex
-        ? Math.round(w * (bannerTex.height / bannerTex.width))
-        : 50;
+    // Determine banner dimensions from texture or use viewport-proportional fallback.
+    // Implements: desktop-layout.md §4 — width = W * NOTIF_WIDTH_PCT.
+    const bannerScale = this.screenW / 1920;
+    const bannerW = Math.round(LAYOUT_CONFIG.NOTIF_WIDTH_PCT * this.screenW);
+    const bannerH = bannerTex
+      ? Math.round(bannerW * (bannerTex.height / bannerTex.width))
+      : Math.max(40, Math.round(this.screenH * 0.05));
 
-      const x = Math.round(this.screenW - w - 10);
-      const y = Math.round(this.screenH * 0.08) + i * (h + 5);
+    // Resolve notification zone and generate deterministic stack positions.
+    const notifZone = resolveZone(LAYOUT_CONFIG.NOTIF_ZONE, this.screenW, this.screenH);
+    const placements = generateNotifStack(
+      notifZone,
+      count,
+      bannerW,
+      bannerH,
+      LAYOUT_CONFIG.NOTIF_GAP,
+    );
+
+    placements.forEach((p, i) => {
+      const notif = notifs[i];
+      if (!notif) return;
       const color = pick([0x4488ff, 0x44cc44, 0xff8844, 0xcc44cc]);
 
       let c: Container;
@@ -882,19 +946,18 @@ export class DesktopManager {
         c = new Container();
         c.label = `notification-banner-${i}`;
         const banner = new Sprite(bannerTex);
-        banner.width = w;
-        banner.height = h;
+        banner.width = p.w;
+        banner.height = p.h;
         c.addChild(banner);
-        // Notif text centered on the banner.
         const textStyle = new TextStyle({ fontSize: Math.round(12 * bannerScale), fill: 0x3a2010, fontFamily: 'sans-serif' });
         const label = new Text({ text: notif.text, style: textStyle });
         label.anchor.set(0.5, 0.5);
-        label.position.set(w / 2, h / 2);
+        label.position.set(p.w / 2, p.h / 2);
         c.addChild(label);
       } else {
-        ({ container: c } = this.factory.createNotification(notif.text, notif.icon, w, h, color));
+        ({ container: c } = this.factory.createNotification(notif.text, notif.icon, p.w, p.h, color));
       }
-      c.position.set(x, y);
+      c.position.set(p.x, p.y);
       this.container.addChild(c);
 
       const el: DesktopElement = {
@@ -904,7 +967,7 @@ export class DesktopManager {
         health: DESKTOP_CONFIG.HEALTH.notification,
         maxHealth: DESKTOP_CONFIG.HEALTH.notification,
         destroyed: false,
-        x, y, width: w, height: h,
+        x: p.x, y: p.y, width: p.w, height: p.h,
         vx: 0, vy: 0, rotSpeed: 0,
       };
       this._elements.push(el);
