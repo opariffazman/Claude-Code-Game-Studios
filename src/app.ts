@@ -48,7 +48,7 @@ import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
-import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
+import { TilePanelBuilder, ADV_PANEL_DAMAGED, ADV_PROGRESS_BORDER_GREEN_PATH, ADV_PROGRESS_BORDER_RED_PATH } from './ui/tile-panel';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -534,12 +534,31 @@ export class DeskSmasherApp {
     if (!fill || !(fill instanceof Sprite)) return;
 
     const healthRatio = Math.max(0, element.health / element.maxHealth);
-    const barH = element.height - 16; // matches the build calculation in tile-panel.ts
-    fill.height = barH * healthRatio;
 
+    // The fill uses uniform scale: scaleX == base scale (never changes).
+    // Shrink scaleY to deplete the bar upward from the bottom anchor.
+    // Base scale was set as (element.height - 20) / 32 during construction.
+    const nativeH    = 32;
+    const targetH    = element.height - 20;
+    const baseScale  = targetH / nativeH;
+    fill.scale.x = baseScale;                    // keep x uniform
+    fill.scale.y = baseScale * healthRatio;       // shrink y upward from bottom
+
+    // Swap fill texture and border frame to red when health drops to 30% or below.
     if (healthRatio <= 0.3) {
-      const redTex = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_red.svg');
-      if (redTex) fill.texture = redTex;
+      const redFillTex   = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_red.svg');
+      const redBorderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_RED_PATH);
+      if (redFillTex) fill.texture = redFillTex;
+      // Swap border frame to red variant
+      const border = container.getChildByLabel('health-bar-border', true);
+      if (border instanceof Sprite && redBorderTex) border.texture = redBorderTex;
+    } else {
+      // Ensure green textures are restored (e.g. after a rebuild)
+      const greenFillTex   = Assets.get<Texture>('assets/sprites/ui/adventure/Vector/progress_green.svg');
+      const greenBorderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_GREEN_PATH);
+      if (greenFillTex) fill.texture = greenFillTex;
+      const border = container.getChildByLabel('health-bar-border', true);
+      if (border instanceof Sprite && greenBorderTex) border.texture = greenBorderTex;
     }
   }
 

@@ -53,9 +53,15 @@ const CLOSE_BTN = `${SVG_DIR}/button_red_close.svg`;
  *  Implements: desk-smasher-eqh — damaged panel variants for destruction progression. */
 export const ADV_PANEL_DAMAGED = `${SVG_DIR}/panel_brown_damaged.svg`;
 
-/** Adventure progress bar sprites — background track and green fill bar. */
-const ADV_PROGRESS_BG   = `${SVG_DIR}/progress_transparent.svg`;
-const ADV_PROGRESS_FILL = `${SVG_DIR}/progress_green.svg`;
+/** Progress border SVG paths — exported so app.ts can swap textures on health update. */
+export const ADV_PROGRESS_BORDER_GREEN_PATH = `${SVG_DIR}/progress_green_border.svg`;
+export const ADV_PROGRESS_BORDER_RED_PATH   = `${SVG_DIR}/progress_red_border.svg`;
+
+/** Adventure progress bar sprites — background track, fill bar, and border frames. */
+const ADV_PROGRESS_BG           = `${SVG_DIR}/progress_transparent.svg`;
+const ADV_PROGRESS_FILL         = `${SVG_DIR}/progress_green.svg`;
+const ADV_PROGRESS_BORDER_GREEN = `${SVG_DIR}/progress_green_border.svg`;
+const ADV_PROGRESS_BORDER_RED   = `${SVG_DIR}/progress_red_border.svg`;
 
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
 export const ADV_BANNER_MODERN  = `${SVG_DIR}/banner_modern.svg`;
@@ -100,6 +106,8 @@ export class TilePanelBuilder {
       CLOSE_BTN,
       ADV_PROGRESS_BG,
       ADV_PROGRESS_FILL,
+      ADV_PROGRESS_BORDER_GREEN,
+      ADV_PROGRESS_BORDER_RED,
       ADV_PANEL_DAMAGED,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
@@ -201,32 +209,47 @@ export class TilePanelBuilder {
     }
 
     // Health bar — vertical progress bar on the right edge of adventure windows.
-    // Starts at 100% height; anchor(0,1) means it shrinks upward as health drops.
+    // Uses border + fill sprites at native 1:2 aspect ratio (16x32), scaled uniformly.
+    // Border renders ON TOP of fill. Fill shrinks upward from bottom as health drops.
     // Implements: desk-smasher-6fa — live health bar on window panels.
+    // Fixes: desk-smasher-6sl — maintain 1:2 aspect ratio, use border variant.
     if (isAdventure) {
-      const barBgTex = Assets.get<Texture>(WIDGET_PROGRESS_BG);
-      if (barBgTex) {
-        const barH = h - 16;
-        const barW = 12;
-        const barX = w - barW - 6;
-        const barY = 8;
+      const borderTex = Assets.get<Texture>(ADV_PROGRESS_BORDER_GREEN);
+      const fillTex   = Assets.get<Texture>(ADV_PROGRESS_FILL);
+      const bgTex     = Assets.get<Texture>(WIDGET_PROGRESS_BG);
 
-        const bg = new Sprite(barBgTex);
-        bg.position.set(barX, barY);
-        bg.width  = barW;
-        bg.height = barH;
-        c.addChild(bg);
+      if (borderTex && fillTex) {
+        // Native aspect ratio: 16x32 (1:2). Scale uniformly to fit window height.
+        const nativeW    = 16;
+        const nativeH    = 32;
+        const targetH    = h - 20; // leave 10px margin top and bottom
+        const uniformScale = targetH / nativeH;
+        const barW       = nativeW * uniformScale;
+        const barX       = w - barW - 6; // flush to right edge with 6px gap
+        const barY       = 10;
 
-        const fillTex = Assets.get<Texture>(`${SVG_DIR}/progress_green.svg`);
-        if (fillTex) {
-          const fill = new Sprite(fillTex);
-          fill.anchor.set(0, 1); // anchor bottom-left so bar shrinks upward
-          fill.position.set(barX, barY + barH);
-          fill.width  = barW;
-          fill.height = barH;
-          fill.label  = 'health-bar-fill';
-          c.addChild(fill);
+        // Background track (empty/transparent) behind everything
+        if (bgTex) {
+          const bg = new Sprite(bgTex);
+          bg.position.set(barX, barY);
+          bg.scale.set(uniformScale); // uniform — no stretch
+          c.addChild(bg);
         }
+
+        // Fill (green) — anchored bottom-left so it shrinks upward as health drops
+        const fill = new Sprite(fillTex);
+        fill.anchor.set(0, 1);
+        fill.position.set(barX, barY + targetH);
+        fill.scale.set(uniformScale); // uniform — no stretch
+        fill.label = 'health-bar-fill';
+        c.addChild(fill);
+
+        // Border frame rendered ON TOP of fill — keeps crisp outline at all health levels
+        const border = new Sprite(borderTex);
+        border.position.set(barX, barY);
+        border.scale.set(uniformScale); // uniform — matches fill dimensions exactly
+        border.label = 'health-bar-border';
+        c.addChild(border);
       }
     }
 
