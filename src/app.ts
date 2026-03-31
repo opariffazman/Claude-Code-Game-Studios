@@ -43,6 +43,7 @@ import { registerDamageEffects, applyProgressiveDamage } from './effects/damage-
 import { MouseToolManager } from './mouse/mouse-tool-manager';
 import { ChaosMeter } from './systems/chaos-meter';
 import { ScreenShake } from './vfx/screen-shake';
+import { CelebrationEffect } from './vfx/celebration';
 import { MouseTrail } from './vfx/mouse-trail';
 import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
@@ -56,6 +57,8 @@ import { CombatLog } from './ui/combat-log';
 import { ToolCard } from './ui/tool-card';
 import { ToolBag } from './ui/tool-bag';
 import { TOOL_STATS } from './mouse/tool-stats';
+import { MilestoneTracker } from './systems/milestone-tracker';
+import { AchievementToast } from './ui/achievement-toast';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -75,6 +78,7 @@ export class DeskSmasherApp {
   private mouseTrail!: MouseTrail;
   private chaosMeter!: ChaosMeter;
   private screenShake!: ScreenShake;
+  private celebration!: CelebrationEffect;
   private mouseTools!: MouseToolManager;
   private themeLoader!: ThemeLoader;
   private themeSystem!: ThemeSystem;
@@ -87,6 +91,8 @@ export class DeskSmasherApp {
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
+  private milestoneTracker!: MilestoneTracker;
+  private achievementToast!: AchievementToast;
   /** Cached pixel dimensions for the Tool Card window — needed by setTool() re-renders. */
   private _toolCardW = 0;
   private _toolCardH = 0;
@@ -188,6 +194,7 @@ export class DeskSmasherApp {
       },
       // On full clear: all damageable elements destroyed simultaneously → celebrate.
       () => {
+        this.celebration.fire(this.app!.screen.width, this.app!.screen.height);
         this.rebuildCycle.triggerCelebration();
       },
     );
@@ -207,6 +214,13 @@ export class DeskSmasherApp {
     const uiLayer = new Container();
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
+
+    // Achievement Toast + MilestoneTracker — fire-once callbacks for session milestones.
+    // Implements: desk-smasher-3qy.11 / 3qy.12 — milestone tracking + toast rendering.
+    this.achievementToast = new AchievementToast(uiLayer, this.app.screen.width);
+    this.milestoneTracker = new MilestoneTracker((label) => {
+      this.achievementToast.show(label);
+    });
 
     // Health dashboard — horizontal bars embedded in the taskbar.
     // The constructor parent arg is unused (bars live inside the taskbar container),
@@ -250,6 +264,9 @@ export class DeskSmasherApp {
 
     // Screen shake — applies offset to the stage container
     this.screenShake = new ScreenShake();
+
+    // Celebration effect — full-clear particle payoff (depends on particles + screenShake)
+    this.celebration = new CelebrationEffect(this.particles, this.spriteParticles, this.screenShake);
 
     // Mouse tools — lives in uiLayer so the cursor indicator is always on top
     this.mouseTools = new MouseToolManager(uiLayer, this.particles, this.audioManager);
