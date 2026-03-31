@@ -50,6 +50,7 @@ import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
 import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
 import { HealthDashboard } from './ui/health-dashboard';
+import { ChaosStars } from './ui/chaos-stars';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -76,6 +77,7 @@ export class DeskSmasherApp {
   private toolIndicator!: ToolIndicator;
   private tilePanelBuilder!: TilePanelBuilder;
   private healthDashboard!: HealthDashboard;
+  private chaosStars!: ChaosStars;
   private unlocked = false;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -185,6 +187,18 @@ export class DeskSmasherApp {
       );
     }
 
+    // Chaos Stars — GTA-style wanted level in the taskbar tray area.
+    // Implements: desk-smasher-rq8 — 5 stars, grey→yellow as chaos increases.
+    this.chaosStars = new ChaosStars();
+    await this.chaosStars.preload();
+    {
+      const { w: taskbarW, h: taskbarH } = this.desktop.taskbarDimensions;
+      // 5 stars * (18 + 4) = 110px wide; leave 90px for clock on the right.
+      const starX = taskbarW - 90 - 5 * (18 + 4);
+      const starY = Math.round((taskbarH - 18) / 2);
+      this.chaosStars.build(this.desktop.taskbarContainer ?? uiLayer, starX, starY);
+    }
+
     // 12. Sprint 3 systems (in dependency order)
 
     // Mouse trail sits between desktop and particles in z-order; attaches to stage
@@ -235,6 +249,11 @@ export class DeskSmasherApp {
             w,
             h,
           );
+          // Re-wire chaos stars to the new taskbar container after rebuild.
+          // Implements: desk-smasher-rq8 — stars survive desktop rebuilds.
+          const starX = w - 90 - 5 * (18 + 4);
+          const starY = Math.round((h - 18) / 2);
+          this.chaosStars.build(this.desktop.taskbarContainer ?? uiLayer, starX, starY);
         }
       },
       this.safetyLimiter,
@@ -322,6 +341,7 @@ export class DeskSmasherApp {
       this.spriteParticles.update(dt);
       this.mouseTrail.update(dt);
       this.chaosMeter.update();
+      this.chaosStars.update(this.chaosMeter.level);
       this.screenShake.update(this.app!.stage);
       this.rebuildCycle.update(dt);
       this.toolIndicator.update(dt);
@@ -625,6 +645,13 @@ export class DeskSmasherApp {
           h,
         );
         this.healthDashboard.onDamage(this.desktop.elements);
+        // Re-anchor chaos stars after resize rebuilds the taskbar container.
+        // Implements: desk-smasher-rq8 — stars survive window resize.
+        if (this.desktop.taskbarContainer) {
+          const starX = w - 90 - 5 * (18 + 4);
+          const starY = Math.round((h - 18) / 2);
+          this.chaosStars.build(this.desktop.taskbarContainer, starX, starY);
+        }
       }
       this.syncBackground();
     }, RESIZE_DEBOUNCE_MS);
