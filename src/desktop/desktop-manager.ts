@@ -62,6 +62,9 @@ export class DesktopManager {
 
   private screenW: number;
   private screenH: number;
+  /** Viewport dimensions at the last buildDesktop() call — used as the reference for resize scaling. */
+  private _buildW = 0;
+  private _buildH = 0;
   private _wallpaperColor: number = WALLPAPER_PALETTES[0].bg;
 
   /** Optional ThemeLoader — when set, sprite icons are used instead of Graphics icons. */
@@ -469,7 +472,18 @@ export class DesktopManager {
   resize(w: number, h: number): void {
     this.screenW = w;
     this.screenH = h;
-    // Don't rebuild — existing elements stay as-is.
+
+    // Scale the entire desktop container uniformly so no elements go off-screen.
+    // Implements: desk-smasher-0p7 — resize must not randomise or stretch the desktop.
+    if (this._buildW > 0 && this._buildH > 0) {
+      const scaleX = w / this._buildW;
+      const scaleY = h / this._buildH;
+      const uniformScale = Math.min(scaleX, scaleY);
+      this.container.scale.set(uniformScale);
+      // Centre horizontally when the viewport is wider than the original aspect ratio.
+      this.container.x = (w - this._buildW * uniformScale) / 2;
+      this.container.y = 0; // top-aligned
+    }
   }
 
   /**
@@ -494,6 +508,13 @@ export class DesktopManager {
   // ---------------------------------------------------------------------------
 
   private buildDesktop(): void {
+    // Snapshot viewport dimensions so resize() can compute the correct scale ratio.
+    this._buildW = this.screenW;
+    this._buildH = this.screenH;
+    // Reset any container transform from a previous resize before re-building at native size.
+    this.container.scale.set(1);
+    this.container.position.set(0, 0);
+
     // Use theme overrides when set by rebuildWithTheme(), else pick randomly.
     const palette = this._themeWallpaper ?? pick(WALLPAPER_PALETTES);
     this._activeIconColors = this._themeIconColors ?? ICON_COLORS;

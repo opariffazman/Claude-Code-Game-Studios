@@ -121,8 +121,11 @@ export class ElementFactory {
 
     const sprite = new Sprite(texture);
     sprite.anchor.set(0.5);
-    sprite.width = width;
-    sprite.height = height;
+    // Preserve aspect ratio — scale uniformly to fit within the cell.
+    // Setting width/height independently stretches non-square textures (e.g. 154x132 animals).
+    const maxDim = Math.max(sprite.texture.width, sprite.texture.height);
+    const uniformScale = Math.min(width, height) / maxDim;
+    sprite.scale.set(uniformScale);
     sprite.position.set(width / 2, height / 2);
     container.addChild(sprite);
 
