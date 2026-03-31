@@ -94,14 +94,9 @@ export class RespawnManager {
       return;
     }
 
-    // Schedule individual respawn (8–12 seconds).
-    const delay = 8000 + Math.random() * 4000;
-    const timer = setTimeout(() => {
-      this._queue.delete(element.id);
-      this._onRespawn(element);
-    }, delay);
-
-    this._queue.set(element.id, timer);
+    // Individual respawn disabled — elements stay destroyed until full clear.
+    // Just track the element in the queue for full-clear counting.
+    this._queue.set(element.id, undefined as unknown as ReturnType<typeof setTimeout>);
   }
 
   /**
