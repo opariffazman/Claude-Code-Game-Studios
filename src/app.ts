@@ -168,11 +168,21 @@ export class DeskSmasherApp {
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
 
-    // Health dashboard — centralized health bars replacing per-window health bars.
-    // Must come after TilePanelBuilder.preload() (reuses preloaded SVG textures).
+    // Health dashboard — horizontal bars embedded in the taskbar.
+    // The constructor parent arg is unused (bars live inside the taskbar container),
+    // but the signature is kept for resize-path compatibility.
     // Implements: health-dashboard.md — centralized health display.
+    // Implements: desk-smasher-v37 — horizontal bars in taskbar.
     this.healthDashboard = new HealthDashboard(uiLayer, this.app.screen.width, this.app.screen.height);
-    this.healthDashboard.build(this.desktop.elements);
+    {
+      const { w, h } = this.desktop.taskbarDimensions;
+      this.healthDashboard.build(
+        this.desktop.elements,
+        this.desktop.taskbarContainer ?? uiLayer,
+        w,
+        h,
+      );
+    }
 
     // 12. Sprint 3 systems (in dependency order)
 
@@ -215,7 +225,16 @@ export class DeskSmasherApp {
         this.mouseTools.clearTrails();
         // Reset dashboard to full health for the new desktop.
         // Implements: health-dashboard.md — bars reset to 100% on desktop rebuild.
-        this.healthDashboard.build(this.desktop.elements);
+        // Implements: desk-smasher-v37 — re-wire to new taskbar container after rebuild.
+        {
+          const { w, h } = this.desktop.taskbarDimensions;
+          this.healthDashboard.build(
+            this.desktop.elements,
+            this.desktop.taskbarContainer ?? uiLayer,
+            w,
+            h,
+          );
+        }
       },
       this.safetyLimiter,
     );
@@ -555,7 +574,19 @@ export class DeskSmasherApp {
       if (!this.app) return;
       this.desktop.resize(this.app.screen.width, this.app.screen.height);
       this.toolIndicator.resize(this.app.screen.width, this.app.screen.height);
-      this.healthDashboard.resize(this.desktop.elements, this.app.screen.width, this.app.screen.height);
+      // Re-wire to the new taskbar container (desktop.resize() recreates it).
+      // Then snap fill widths to current health state.
+      // Implements: desk-smasher-v37 — taskbar-embedded bars survive resize.
+      {
+        const { w, h } = this.desktop.taskbarDimensions;
+        this.healthDashboard.build(
+          this.desktop.elements,
+          this.desktop.taskbarContainer ?? undefined,
+          w,
+          h,
+        );
+        this.healthDashboard.onDamage(this.desktop.elements);
+      }
       this.syncBackground();
     }, RESIZE_DEBOUNCE_MS);
   }

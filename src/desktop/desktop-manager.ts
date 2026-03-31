@@ -61,6 +61,11 @@ export class DesktopManager {
   private _damageMarks: import('pixi.js').Graphics[] = [];
   private static readonly MAX_DAMAGE_MARKS = 30;
 
+  /** Reference to the taskbar Container — set by buildTaskbar() on every build. */
+  private _taskbarContainer: Container | null = null;
+  /** Taskbar height in pixels at last buildTaskbar() call. */
+  private _taskbarH = 0;
+
   private screenW: number;
   private screenH: number;
   /** Viewport dimensions at the last buildDesktop() call — used as the reference for resize scaling. */
@@ -219,6 +224,22 @@ export class DesktopManager {
   /** Read-only snapshot of current DesktopElements (alive and destroyed). */
   get elements(): DesktopElement[] {
     return this._elements;
+  }
+
+  /**
+   * The PixiJS Container for the current taskbar, or null before first build.
+   * Used by HealthDashboard to embed horizontal health bars inside the taskbar.
+   */
+  get taskbarContainer(): Container | null {
+    return this._taskbarContainer;
+  }
+
+  /**
+   * Taskbar geometry — width equals the current screen width.
+   * Used by HealthDashboard to compute bar dimensions on build/resize.
+   */
+  get taskbarDimensions(): { w: number; h: number } {
+    return { w: this.screenW, h: this._taskbarH };
   }
 
   /**
@@ -763,6 +784,10 @@ export class DesktopManager {
       c = result.container;
       gfx = result.gfx;
     }
+
+    // Expose taskbar container and height for HealthDashboard wiring.
+    this._taskbarContainer = c;
+    this._taskbarH = taskbarH;
 
     c.position.set(0, this.screenH - taskbarH);
     this.container.addChild(c);
