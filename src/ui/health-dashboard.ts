@@ -7,23 +7,33 @@
  *   Blue   = alerts (notification elements)
  *
  * Bars sit between the Start button and the tray icons, filling proportionally
- * left-to-right as health depletes. Implemented as plain Graphics rounded rects
- * so no SVG rotation hacks are required.
+ * left-to-right as health depletes. Implemented as rotated Kenney adventure SVG
+ * sprites — progress_transparent.svg (bg track) + progress_*.svg (colored fill).
+ *
+ * Rotation trick: SVGs are 16×32 (portrait). Rotated -90° (CCW) with anchor (0,1)
+ * they become horizontal bars. After rotation:
+ *   sprite.height controls visual width
+ *   sprite.width  controls visual height
  *
  * Implements: health-dashboard.md — centralized health display, taskbar-embedded layout.
  * Spec: desk-smasher-v37 — horizontal bars in taskbar replacing right-edge dashboard.
+ * Spec: desk-smasher-9ne — replace Graphics bars with rotated Kenney SVG sprites.
  */
-import { Container, Graphics } from 'pixi.js';
+import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import type { DesktopElement, ElementType } from '../types';
 
 // ---------------------------------------------------------------------------
-// Bar colors per category
+// SVG asset paths — must match paths preloaded by TilePanelBuilder
 // ---------------------------------------------------------------------------
 
-const BAR_COLORS: Record<string, number> = {
-  animals:    0x44cc44,
-  structures: 0xcc4444,
-  alerts:     0x4488cc,
+const SVG_DIR = 'assets/sprites/ui/adventure/Vector';
+
+const BAR_BG_PATH = `${SVG_DIR}/progress_transparent.svg`;
+
+const BAR_FILL_PATHS: Record<string, string> = {
+  animals:    `${SVG_DIR}/progress_green.svg`,
+  structures: `${SVG_DIR}/progress_red.svg`,
+  alerts:     `${SVG_DIR}/progress_blue.svg`,
 };
 
 // ---------------------------------------------------------------------------
@@ -38,10 +48,6 @@ const BAR_AREA_RIGHT_RESERVE = 120;
 const BAR_GAP = 6;
 /** Bar height as a fraction of taskbar height. */
 const BAR_HEIGHT_RATIO = 0.5;
-/** Corner radius on rounded rect bars. */
-const BAR_CORNER_RADIUS = 4;
-/** Background track alpha. */
-const BAR_BG_ALPHA = 0.3;
 /** Minimum fill width in pixels — keeps bar visible near zero health. */
 const MIN_FILL_W = 6;
 
@@ -69,17 +75,17 @@ function getCategory(type: ElementType): Category | null {
 interface BarState {
   /** Category this bar tracks. */
   category: Category;
-  /** Dark track behind the fill. */
-  bgRect: Graphics;
-  /** Colored fill rect — width shrinks as health depletes. */
-  fillRect: Graphics;
+  /** Background track sprite (rotated progress_transparent). */
+  bgSprite: Sprite;
+  /** Colored fill sprite — visual width shrinks as health depletes. */
+  fillSprite: Sprite;
   /** X origin of this bar in taskbar-local coordinates. */
   barX: number;
   /** Y origin of this bar in taskbar-local coordinates. */
   barY: number;
-  /** Maximum bar width at full health. */
+  /** Maximum bar visual width at full health (equals singleBarW). */
   maxW: number;
-  /** Bar height in pixels. */
+  /** Bar visual height in pixels. */
   barH: number;
   /** Sum of maxHealth across all tracked elements (set on build/rebuild). */
   maxHealthSum: number;
@@ -181,32 +187,56 @@ export class HealthDashboard {
     this.dashContainer.label = 'health-dashboard';
     this._taskbarContainer.addChild(this.dashContainer);
 
+    const bgTex = Assets.get<Texture>(BAR_BG_PATH);
+
     let xCursor = BAR_AREA_START_X;
     for (const cat of activeCategories) {
       const barX = xCursor;
 
-      // Dark background track.
-      const bgRect = new Graphics()
-        .roundRect(barX, barY, singleBarW, barH, BAR_CORNER_RADIUS)
-        .fill({ color: 0x000000, alpha: BAR_BG_ALPHA });
-      bgRect.label = `health-bg-${cat}`;
-      this.dashContainer.addChild(bgRect);
+      // Background track — rotated transparent progress bar.
+      // After -90° rotation with anchor (0,1):
+      //   sprite.height = visual width, sprite.width = visual height
+      //   position.set(barX, barY + barH) places the visual top-left at (barX, barY)
+      let bgSprite: Sprite;
+      if (bgTex) {
+        bgSprite = new Sprite(bgTex);
+        bgSprite.rotation = -Math.PI / 2;
+        bgSprite.anchor.set(0, 1);
+        bgSprite.height = singleBarW; // visual width after rotation
+        bgSprite.width  = barH;       // visual height after rotation
+        bgSprite.position.set(barX, barY + barH);
+        bgSprite.label = `health-bg-${cat}`;
+        this.dashContainer.addChild(bgSprite);
+      } else {
+        // Fallback: invisible placeholder sprite so BarState always has a valid reference.
+        bgSprite = new Sprite();
+      }
 
-      // Colored fill — starts full width.
-      const fillRect = new Graphics()
-        .roundRect(barX, barY, singleBarW, barH, BAR_CORNER_RADIUS)
-        .fill(BAR_COLORS[cat]);
-      fillRect.label = `health-fill-${cat}`;
-      this.dashContainer.addChild(fillRect);
+      // Colored fill — rotated progress bar, starts full width.
+      const fillPath = BAR_FILL_PATHS[cat];
+      const fillTex  = Assets.get<Texture>(fillPath);
+      let fillSprite: Sprite;
+      if (fillTex) {
+        fillSprite = new Sprite(fillTex);
+        fillSprite.rotation = -Math.PI / 2;
+        fillSprite.anchor.set(0, 1);
+        fillSprite.height = singleBarW; // visual width at full health
+        fillSprite.width  = barH;       // visual height after rotation
+        fillSprite.position.set(barX, barY + barH);
+        fillSprite.label = `health-fill-${cat}`;
+        this.dashContainer.addChild(fillSprite);
+      } else {
+        fillSprite = new Sprite();
+      }
 
       const maxHealthSum = elements
         .filter(e => getCategory(e.type) === cat)
         .reduce((sum, e) => sum + e.maxHealth, 0);
 
       this.bars.push({
-        category:     cat,
-        bgRect,
-        fillRect,
+        category: cat,
+        bgSprite,
+        fillSprite,
         barX,
         barY,
         maxW:         singleBarW,
@@ -237,13 +267,9 @@ export class HealthDashboard {
         }
       }
 
-      const ratio  = bar.maxHealthSum > 0 ? currentHealthSum / bar.maxHealthSum : 0;
-      const newW   = Math.max(MIN_FILL_W, bar.maxW * ratio);
-
-      bar.fillRect
-        .clear()
-        .roundRect(bar.barX, bar.barY, newW, bar.barH, BAR_CORNER_RADIUS)
-        .fill(BAR_COLORS[bar.category]);
+      const ratio = bar.maxHealthSum > 0 ? currentHealthSum / bar.maxHealthSum : 0;
+      // After rotation, sprite.height controls visual width.
+      bar.fillSprite.height = Math.max(MIN_FILL_W, bar.maxW * ratio);
     }
   }
 
