@@ -184,7 +184,16 @@ export class HealthDashboard {
     this.dashContainer.label = 'health-dashboard';
     this._taskbarContainer.addChild(this.dashContainer);
 
-    let xCursor = START_X;
+    // Center pips in the available space between start button and tray area.
+    // Implements: desk-smasher-zxj — centered pip groups in taskbar.
+    const totalPipsW =
+      categoryCount * (pipsPerGroup * (PIP_SIZE + PIP_SPACING) - PIP_SPACING)
+      + (categoryCount - 1) * GROUP_SPACING;
+    const availableStart = START_X;
+    const availableEnd = tbW - 100; // before tray + clock
+    const centerX = availableStart + (availableEnd - availableStart - totalPipsW) / 2;
+    let xCursor = Math.max(availableStart, Math.round(centerX));
+
     for (const cat of activeCategories) {
       // Retrieve fill texture for this category.
       let fillTex: Texture;

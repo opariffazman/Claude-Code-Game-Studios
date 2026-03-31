@@ -743,6 +743,20 @@ export class DesktopManager {
         c.addChild(fallbackBtn);
       }
 
+      // Animal icon inside start button — thematic and cute.
+      // Implements: desk-smasher-ls0 — fill start button with random animal face.
+      {
+        const animalTex = this._themeLoader?.getNextIconTexture() ?? null;
+        if (animalTex) {
+          const icon = new Sprite(animalTex);
+          icon.anchor.set(0.5);
+          icon.width = btnSize * 0.6;
+          icon.height = btnSize * 0.6;
+          icon.position.set(btnPad + btnSize / 2, btnPad + btnSize / 2);
+          c.addChild(icon);
+        }
+      }
+
       // Clock text — font size proportional to taskbarH.
       const clockStyle = new TextStyle({ fontSize: clockFontSize, fill: 0xffffff, fontFamily: 'monospace' });
       const clock = new Text({ text: '12:00', style: clockStyle });

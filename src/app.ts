@@ -450,7 +450,25 @@ export class DeskSmasherApp {
   };
 
   private hitElementToolAware(element: import('./types').DesktopElement): void {
-    if (element.type === 'taskbar') return; // Taskbar is immune to damage
+    if (element.type === 'taskbar') {
+      // Shake the taskbar visually but don't damage it.
+      // Implements: desk-smasher-6qe — taskbar shakes but is never destroyed.
+      const tbContainer = this.desktop.getContainerForElement(element);
+      if (tbContainer) {
+        const origX = tbContainer.x;
+        const origY = tbContainer.y;
+        tbContainer.x += (Math.random() - 0.5) * 6;
+        tbContainer.y += (Math.random() - 0.5) * 3;
+        setTimeout(() => { tbContainer.x = origX; tbContainer.y = origY; }, 100);
+        this.particles.emit(
+          element.x + element.width / 2,
+          element.y + element.height / 2,
+          3,
+          { speed: 80, gravity: 100, life: 0.3 },
+        );
+      }
+      return;
+    }
     const container = this.desktop.getContainerForElement(element);
     if (!container) return;
 
@@ -518,7 +536,25 @@ export class DeskSmasherApp {
    * @param element - The element to damage.
    */
   private hitElement(element: import('./types').DesktopElement): void {
-    if (element.type === 'taskbar') return; // Taskbar is immune to damage
+    if (element.type === 'taskbar') {
+      // Shake the taskbar visually but don't damage it.
+      // Implements: desk-smasher-6qe — taskbar shakes but is never destroyed.
+      const container = this.desktop.getContainerForElement(element);
+      if (container) {
+        const origX = container.x;
+        const origY = container.y;
+        container.x += (Math.random() - 0.5) * 6;
+        container.y += (Math.random() - 0.5) * 3;
+        setTimeout(() => { container.x = origX; container.y = origY; }, 100);
+        this.particles.emit(
+          element.x + element.width / 2,
+          element.y + element.height / 2,
+          3,
+          { speed: 80, gravity: 100, life: 0.3 },
+        );
+      }
+      return;
+    }
     const container = this.desktop.getContainerForElement(element);
     if (!container) return;
 
