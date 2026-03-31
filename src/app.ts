@@ -269,7 +269,13 @@ export class DeskSmasherApp {
     const fpsText = new Text({ text: 'FPS: 0', style: fpsStyle });
     fpsText.position.set(4, 4);
     fpsText.alpha = 0.4;
+    fpsText.visible = false; // Hidden by default — backtick toggles
     uiLayer.addChild(fpsText);
+
+    // Toggle FPS counter with backtick key (debug aid — not exposed to players).
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '`') fpsText.visible = !fpsText.visible;
+    });
 
     // 19. Game loop
     this.app.ticker.add((ticker) => {

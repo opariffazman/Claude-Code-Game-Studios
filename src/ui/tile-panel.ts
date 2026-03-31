@@ -92,6 +92,24 @@ export class TilePanelBuilder {
       c.addChild(panel);
     }
 
+    // Title bar strip — dark brown bar just below the top border, adventure themes only.
+    if (theme && ADV_PANELS[theme]) {
+      const titleBarTex = Assets.get<Texture>(ADV_TASKBAR);
+      if (titleBarTex) {
+        const titleBar = new NineSliceSprite({
+          texture:      titleBarTex,
+          leftWidth:    BORDER_INSET,
+          topHeight:    BORDER_INSET,
+          rightWidth:   BORDER_INSET,
+          bottomHeight: BORDER_INSET,
+          width:        w - 8,
+          height:       28,
+        });
+        titleBar.position.set(4, 4);
+        c.addChild(titleBar);
+      }
+    }
+
     // Grid-paper interior inset — only for adventure-panel themes.
     if (theme && ADV_PANELS[theme]) {
       const gridTex = Assets.get<Texture>(ADV_GRID_PAPER);

@@ -859,7 +859,8 @@ export class DesktopManager {
 
       if (this._tilePanelBuilder?.isReady) {
         const style = styles[i % styles.length];
-        const windowContainer = this._tilePanelBuilder.buildWindow(style, p.w, p.h);
+        const themeName = this._themeLoader?.currentTheme?.name;
+        const windowContainer = this._tilePanelBuilder.buildWindow(style, p.w, p.h, themeName);
         windowContainer.position.set(p.x, p.y);
         c = windowContainer;
       } else if (windowTexture) {

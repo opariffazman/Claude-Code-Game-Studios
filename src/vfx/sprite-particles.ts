@@ -35,12 +35,34 @@ import { PARTICLE_CONFIG } from '../config';
  * (without extension) that live under BASE_PATH.
  */
 const PARTICLE_SETS = {
-  spark:  ['spark_01', 'spark_02', 'spark_03', 'spark_04', 'spark_05'],
-  smoke:  ['smoke_01', 'smoke_02', 'smoke_03', 'smoke_04', 'smoke_05'],
-  fire:   ['fire_01',  'fire_02',  'flame_01', 'flame_02', 'flame_03'],
-  star:   ['star_01',  'star_02',  'star_03',  'star_04',  'star_05'],
-  magic:  ['magic_01', 'magic_02', 'magic_03', 'magic_04', 'magic_05'],
-  dirt:   ['dirt_01',  'dirt_02',  'dirt_03'],
+  // -- Core destruction effects --
+  spark:   ['spark_01',  'spark_02',  'spark_03',  'spark_04',  'spark_05',
+             'spark_06',  'spark_07'],
+  smoke:   ['smoke_01',  'smoke_02',  'smoke_03',  'smoke_04',  'smoke_05',
+             'smoke_06',  'smoke_07',  'smoke_08',  'smoke_09',  'smoke_10'],
+  fire:    ['fire_01',   'fire_02'],
+  flame:   ['flame_01',  'flame_02',  'flame_03',  'flame_04',  'flame_05',
+             'flame_06'],
+  dirt:    ['dirt_01',   'dirt_02',   'dirt_03'],
+  // -- Collectible / reward effects --
+  star:    ['star_01',   'star_02',   'star_03',   'star_04',   'star_05',
+             'star_06',   'star_07',   'star_08',   'star_09'],
+  magic:   ['magic_01',  'magic_02',  'magic_03',  'magic_04',  'magic_05'],
+  // -- Impact / hit effects --
+  flare:   ['flare_01'],
+  light:   ['light_01',  'light_02',  'light_03'],
+  scorch:  ['scorch_01', 'scorch_02', 'scorch_03'],
+  scratch: ['scratch_01'],
+  slash:   ['slash_01',  'slash_02',  'slash_03',  'slash_04'],
+  // -- Decorative / symbol effects --
+  symbol:  ['symbol_01', 'symbol_02'],
+  trace:   ['trace_01',  'trace_02',  'trace_03',  'trace_04',  'trace_05',
+             'trace_06',  'trace_07'],
+  twirl:   ['twirl_01',  'twirl_02',  'twirl_03'],
+  // -- Projectile / burst effects --
+  muzzle:  ['muzzle_01', 'muzzle_02', 'muzzle_03', 'muzzle_04', 'muzzle_05'],
+  window:  ['window_01', 'window_02', 'window_03', 'window_04'],
+  circle:  ['circle_01', 'circle_02', 'circle_03', 'circle_04', 'circle_05'],
 } as const;
 
 /** Union of all valid particle set names. */
@@ -48,10 +70,11 @@ export type ParticleSet = keyof typeof PARTICLE_SETS;
 
 /**
  * The assets directory prefix for Kenney particle PNGs.
- * Vite serves the project root as-is (base: './'), so this path is
- * relative to the HTML file at the project root.
+ * Files are served from public/assets/kenney/particles/ — Vite copies the
+ * public/ directory verbatim to the build output, so no import hash is applied
+ * and the path is stable for both dev and production.
  */
-const BASE_PATH = 'assets/sprites/particles/PNG (Transparent)/';
+const BASE_PATH = 'assets/kenney/particles/';
 
 // ---------------------------------------------------------------------------
 // Pool configuration
