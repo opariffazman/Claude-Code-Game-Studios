@@ -279,7 +279,8 @@ export class DesktopManager {
     laser: 1,    // burn mark
     bomb: 2,     // dent/crater
     freeze: 4,   // pixel corruption (frost)
-    magnet: 5,   // scratch marks
+    magnet: -1,  // no wallpaper stamp — uses particle effect instead
+    // Implements: desk-smasher-5nc — magnet suction particles instead of stamps.
   };
 
   crackWallpaper(x: number, y: number, toolName?: string): void {
@@ -293,51 +294,88 @@ export class DesktopManager {
     const damageType = toolName !== undefined && DesktopManager.TOOL_DAMAGE_MAP[toolName] !== undefined
       ? DesktopManager.TOOL_DAMAGE_MAP[toolName]
       : Math.floor(Math.random() * 6);
+    // Magnet uses twirl particles (emitted by the tool itself) — no wallpaper stamp.
+    // Implements: desk-smasher-5nc — magnet suction particles instead of stamps.
+    if (damageType === -1) return;
     const mark = new Graphics();
     mark.position.set(x, y);
 
     switch (damageType) {
       case 0: {
-        // Crack: spider-web fracture lines — orange tint for hammer impact
-        const numLines = 3 + Math.floor(Math.random() * 4);
+        // Crack: heavy spider-web fracture lines — deep orange hammer impact
+        const numLines = 5 + Math.floor(Math.random() * 3);
+        // Small impact burst at center — 3–4 debris dots
+        const numDebris = 3 + Math.floor(Math.random() * 2);
+        for (let d = 0; d < numDebris; d++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = 3 + Math.random() * 5;
+          mark.circle(Math.cos(a) * r, Math.sin(a) * r, 1.5 + Math.random() * 1.5)
+            .fill({ color: 0x663300, alpha: 0.5 + Math.random() * 0.2 });
+        }
         for (let i = 0; i < numLines; i++) {
           const angle = Math.random() * Math.PI * 2;
-          const len = 20 + Math.random() * 50;
-          const midX = Math.cos(angle) * len * 0.4 + (Math.random() - 0.5) * 12;
-          const midY = Math.sin(angle) * len * 0.4 + (Math.random() - 0.5) * 12;
+          const len = 40 + Math.random() * 30;
+          const midX = Math.cos(angle) * len * 0.4 + (Math.random() - 0.5) * 14;
+          const midY = Math.sin(angle) * len * 0.4 + (Math.random() - 0.5) * 14;
           mark.moveTo(0, 0).lineTo(midX, midY)
             .lineTo(Math.cos(angle) * len, Math.sin(angle) * len)
-            .stroke({ color: 0x884400, width: 1.5 + Math.random() * 1.5, alpha: 0.35 + Math.random() * 0.15 });
+            .stroke({ color: 0x663300, width: 3 + Math.random() * 1.5, alpha: 0.45 + Math.random() * 0.2 });
         }
         break;
       }
       case 1: {
-        // Burn: bright green scorched marks with green embers — laser burns green
-        const radius = 15 + Math.random() * 25;
-        mark.circle(0, 0, radius).fill({ color: 0x22aa00, alpha: 0.5 });
-        mark.circle(0, 0, radius * 0.6).fill({ color: 0x004400, alpha: 0.4 });
-        mark.circle(0, 0, radius * 1.1).stroke({ color: 0x006600, width: 3, alpha: 0.3 });
-        for (let i = 0; i < 5; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const r = radius * (0.7 + Math.random() * 0.4);
-          mark.circle(Math.cos(a) * r, Math.sin(a) * r, 2 + Math.random() * 2)
-            .fill({ color: 0x44ff00, alpha: 0.4 + Math.random() * 0.3 });
-        }
+        // Laser: thin precise burn line — single straight cut with green glow
+        const cutLen = 30 + Math.random() * 40;
+        const cutAngle = Math.random() * Math.PI; // 0–180° so it reads as a line, not a dot
+        const dx = Math.cos(cutAngle);
+        const dy = Math.sin(cutAngle);
+        // Outer glow — wide, faint
+        mark.moveTo(-dx * cutLen, -dy * cutLen)
+          .lineTo(dx * cutLen, dy * cutLen)
+          .stroke({ color: 0x00ff44, width: 5, alpha: 0.15 });
+        // Mid glow
+        mark.moveTo(-dx * cutLen, -dy * cutLen)
+          .lineTo(dx * cutLen, dy * cutLen)
+          .stroke({ color: 0x00ee33, width: 2.5, alpha: 0.4 });
+        // Core cut — bright, sharp
+        mark.moveTo(-dx * cutLen, -dy * cutLen)
+          .lineTo(dx * cutLen, dy * cutLen)
+          .stroke({ color: 0x88ffaa, width: 1, alpha: 0.85 });
+        // Entry/exit scorch dots at line ends
+        mark.circle(-dx * cutLen, -dy * cutLen, 2).fill({ color: 0x00ff44, alpha: 0.6 });
+        mark.circle(dx * cutLen, dy * cutLen, 2).fill({ color: 0x00ff44, alpha: 0.6 });
         break;
       }
       case 2: {
-        // Dent: deep red crater with orange splash around edges — bomb impact
-        const size = 12 + Math.random() * 20;
-        mark.circle(0, 0, size).fill({ color: 0x880000, alpha: 0.3 });
-        mark.circle(0, 0, size * 0.7).fill({ color: 0x660000, alpha: 0.25 });
-        mark.circle(0, 0, size * 0.4).fill({ color: 0x440000, alpha: 0.2 });
-        mark.circle(0, 0, size * 1.3).stroke({ color: 0xff6600, width: 2, alpha: 0.35 });
-        for (let i = 0; i < 4; i++) {
+        // Bomb: large explosive crater — dark center, orange/red debris cloud
+        const size = 28 + Math.random() * 20;
+        // Outer scorch ring — wide orange halo
+        mark.circle(0, 0, size * 1.6).fill({ color: 0xff4400, alpha: 0.12 });
+        // Mid blast ring
+        mark.circle(0, 0, size * 1.2).fill({ color: 0xcc2200, alpha: 0.2 });
+        // Inner crater — darkest
+        mark.circle(0, 0, size * 0.75).fill({ color: 0x660000, alpha: 0.45 });
+        // Center void — near black
+        mark.circle(0, 0, size * 0.35).fill({ color: 0x220000, alpha: 0.6 });
+        // Crater rim stroke
+        mark.circle(0, 0, size * 0.75).stroke({ color: 0xff6600, width: 3, alpha: 0.5 });
+        // Debris scatter — 8–12 orange/red chunks at varying distances
+        const numDebris = 8 + Math.floor(Math.random() * 5);
+        for (let i = 0; i < numDebris; i++) {
           const a = Math.random() * Math.PI * 2;
-          const dist = size * (1.0 + Math.random() * 0.6);
-          const sr = 2 + Math.random() * 3;
-          mark.circle(Math.cos(a) * dist, Math.sin(a) * dist, sr)
-            .fill({ color: 0xff8800, alpha: 0.4 + Math.random() * 0.2 });
+          const dist = size * (0.9 + Math.random() * 0.9);
+          const dr = 2.5 + Math.random() * 5;
+          const debrisColor = Math.random() > 0.5 ? 0xff6600 : 0xcc3300;
+          mark.circle(Math.cos(a) * dist, Math.sin(a) * dist, dr)
+            .fill({ color: debrisColor, alpha: 0.5 + Math.random() * 0.3 });
+        }
+        // Radial blast streaks — short jagged lines outward
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + Math.random() * 0.4;
+          const streakLen = size * (0.8 + Math.random() * 0.5);
+          mark.moveTo(Math.cos(a) * size * 0.5, Math.sin(a) * size * 0.5)
+            .lineTo(Math.cos(a) * streakLen, Math.sin(a) * streakLen)
+            .stroke({ color: 0xff8800, width: 1.5, alpha: 0.35 + Math.random() * 0.2 });
         }
         break;
       }

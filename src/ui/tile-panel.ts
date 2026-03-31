@@ -37,6 +37,14 @@ const BORDER_INSET = 16;
 /** Adventure pack close button — standalone sprite, render at native size. */
 const CLOSE_BTN = 'assets/kenney/ui/adventure/close_red.png';
 
+/** Damaged panel variant — swapped in when a window drops below 50% health.
+ *  Implements: desk-smasher-eqh — damaged panel variants for destruction progression. */
+export const ADV_PANEL_DAMAGED = 'assets/kenney/ui/adventure/panel_brown_damaged.png';
+
+/** Adventure progress bar sprites — background track and green fill bar. */
+const ADV_PROGRESS_BG   = 'assets/kenney/ui/adventure/progress_transparent.png';
+const ADV_PROGRESS_FILL = 'assets/kenney/ui/adventure/progress_green.png';
+
 /** Adventure banner sprites — notification banners and decorative hanging banner. */
 const ADV_BANNER_MODERN  = 'assets/kenney/ui/adventure/banner_modern.png';
 const ADV_BANNER_HANGING = 'assets/kenney/ui/adventure/banner_hanging.png';
@@ -56,6 +64,9 @@ export class TilePanelBuilder {
       ADV_TASKBAR,
       ADV_ROUND_BTN,
       CLOSE_BTN,
+      ADV_PROGRESS_BG,
+      ADV_PROGRESS_FILL,
+      ADV_PANEL_DAMAGED,
       ADV_BANNER_MODERN,
       ADV_BANNER_HANGING,
       ADV_CHECKBOX_CHECKED,
@@ -116,24 +127,6 @@ export class TilePanelBuilder {
       }
     }
 
-    // Grid-paper interior inset — only for adventure-panel themes.
-    if (theme && ADV_PANELS[theme]) {
-      const gridTex = Assets.get<Texture>(ADV_GRID_PAPER);
-      if (gridTex) {
-        const grid = new NineSliceSprite({
-          texture:      gridTex,
-          leftWidth:    BORDER_INSET,
-          topHeight:    BORDER_INSET,
-          rightWidth:   BORDER_INSET,
-          bottomHeight: BORDER_INSET,
-          width:        w - 16,
-          height:       h - 40,  // inset from panel edges, below close button row
-        });
-        grid.position.set(8, 32);
-        c.addChild(grid);
-      }
-    }
-
     // Faux window content — text lines and a progress bar, adventure themes only.
     if (theme && ADV_PANELS[theme]) {
       const contentStartY = 65; // below title bar + grid paper margin
@@ -149,19 +142,31 @@ export class TilePanelBuilder {
           .fill({ color: 0x333333, alpha: 0.15 });
       }
 
-      // Fake progress bar — dark frame with a green fill at random progress 30–90%.
+      c.addChild(content);
+
+      // Adventure progress bar sprites — replace faux Graphics bar.
+      // Implements: desk-smasher-yez — adventure pack progress bar sprites.
       const barY = contentStartY + 4 * 18 + 10;
       const barW = contentMaxW * 0.7;
-      const barH = 10;
-      // Background frame
-      content.rect(contentX, barY, barW, barH)
-        .fill({ color: 0x000000, alpha: 0.1 });
-      // Progress fill
+      const barH = 12;
       const progress = 0.3 + Math.random() * 0.6;
-      content.rect(contentX + 1, barY + 1, (barW - 2) * progress, barH - 2)
-        .fill({ color: 0x44aa44, alpha: 0.6 });
 
-      c.addChild(content);
+      const bgTex = Assets.get<Texture>(ADV_PROGRESS_BG);
+      const fillTex = Assets.get<Texture>(ADV_PROGRESS_FILL);
+      if (bgTex && fillTex) {
+        // Background track
+        const bg = new Sprite(bgTex);
+        bg.position.set(contentX, barY);
+        bg.width = barW;
+        bg.height = barH;
+        c.addChild(bg);
+        // Fill (random progress 30–90%)
+        const fill = new Sprite(fillTex);
+        fill.position.set(contentX, barY);
+        fill.width = barW * progress;
+        fill.height = barH;
+        c.addChild(fill);
+      }
     }
 
     // Close button — scaled proportionally to window size, top-right corner.

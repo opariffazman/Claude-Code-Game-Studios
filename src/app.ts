@@ -29,7 +29,7 @@
  *   - RebuildCycle (animated fade-to-white transition between rebuilds)
  *   - Input blocked during transitions (no hits against half-built desktop)
  */
-import { Application, Text, TextStyle, Container } from 'pixi.js';
+import { Application, Text, TextStyle, Container, Assets, NineSliceSprite, Texture } from 'pixi.js';
 import { SafetyLimiter } from './core/safety-limiter';
 import { InputManager } from './core/input/input-manager';
 import { ParentLock } from './core/input/parent-lock';
@@ -48,7 +48,7 @@ import { ThemeSystem } from './systems/theme-system';
 import { ThemeLoader } from './systems/theme-loader';
 import { RebuildCycle } from './systems/rebuild-cycle';
 import { ToolIndicator } from './ui/tool-indicator';
-import { TilePanelBuilder } from './ui/tile-panel';
+import { TilePanelBuilder, ADV_PANEL_DAMAGED } from './ui/tile-panel';
 import type { SoundType } from './types';
 
 /** Milliseconds to wait after the last resize event before rebuilding the desktop. */
@@ -455,6 +455,16 @@ export class DeskSmasherApp {
       // Implements: desk-smasher-auk — tool-aware particle sets.
       const damageSet = DeskSmasherApp.TOOL_DAMAGE_PARTICLES[toolName] || 'dirt';
       this.spriteParticles.emit(cx, cy, 3, damageSet as import('./vfx/sprite-particles').ParticleSet);
+
+      // Damaged panel swap — when a window drops below 50% health, replace its
+      // NineSliceSprite panel (child 0) with the cracked brown damaged variant.
+      // Implements: desk-smasher-eqh — damaged panel variants for destruction progression.
+      if (element.type === 'window' && element.health <= element.maxHealth * 0.5) {
+        const damagedTex = Assets.get<Texture>(ADV_PANEL_DAMAGED);
+        if (damagedTex && container.children[0] instanceof NineSliceSprite) {
+          (container.children[0] as NineSliceSprite).texture = damagedTex;
+        }
+      }
     }
 
     this.desktop.applyImpulse(element);
