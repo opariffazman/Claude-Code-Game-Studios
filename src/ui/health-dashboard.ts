@@ -48,7 +48,7 @@ function getCategory(type: ElementType): Category | null {
   switch (type) {
     case 'icon':                                   return 'animals';
     case 'window': case 'sticky': case 'widget':   return 'structures';
-    case 'notification':                           return 'alerts';
+    case 'notification': case 'milestone':          return 'alerts';
     default:                                       return null; // taskbar excluded
   }
 }

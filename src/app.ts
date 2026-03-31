@@ -59,7 +59,6 @@ import { ToolBag } from './ui/tool-bag';
 import { TOOL_STATS } from './mouse/tool-stats';
 import { MilestoneTracker } from './systems/milestone-tracker';
 import { AchievementToast } from './ui/achievement-toast';
-import { MilestonePanel } from './ui/milestone-panel';
 import { LAYOUT_CONFIG } from './config';
 import type { SoundType } from './types';
 
@@ -93,7 +92,8 @@ export class DeskSmasherApp {
   private combatLog: CombatLog | null = null;
   private toolCard: ToolCard | null = null;
   private toolBag: ToolBag | null = null;
-  private milestonePanel: MilestonePanel | null = null;
+  /** CombatLog instance used to display milestone entries inside the milestone banner element. */
+  private milestoneLog: CombatLog | null = null;
   private milestoneTracker!: MilestoneTracker;
   private achievementToast!: AchievementToast;
   /** Cached content dimensions for the Tool Card window — needed by setTool() re-renders. */
@@ -224,17 +224,15 @@ export class DeskSmasherApp {
     uiLayer.label = 'ui';
     this.app.stage.addChild(uiLayer);
 
-    // MilestonePanel — stacked adventure banners in the top-right corner.
-    // Implements: desk-smasher-7jg — milestone entries persist as stacked banners.
-    this.milestonePanel = new MilestonePanel(uiLayer, this.app.screen.width);
-
     // Achievement Toast + MilestoneTracker — fire-once callbacks for session milestones.
     // Implements: desk-smasher-3qy.11 / 3qy.12 — milestone tracking + toast rendering.
+    // Implements: desk-smasher-517 — milestoneLog replaces MilestonePanel (banner is now
+    // a destructible desktop element created in _createFunctionalWindows).
     this.achievementToast = new AchievementToast(uiLayer, this.app.screen.width);
     this.milestoneTracker = new MilestoneTracker((label) => {
       this.achievementToast.show(label);
       this.combatLog?.addEntry('\u2605', label, 'milestone');
-      this.milestonePanel?.addEntry(label);
+      this.milestoneLog?.addEntry('\u2605', label, 'milestone');
     });
 
     // Health dashboard — horizontal bars embedded in the taskbar.

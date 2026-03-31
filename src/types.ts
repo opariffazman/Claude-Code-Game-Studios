@@ -3,7 +3,7 @@
  */
 
 /** Desktop element types */
-export type ElementType = 'icon' | 'window' | 'taskbar' | 'sticky' | 'notification' | 'widget';
+export type ElementType = 'icon' | 'window' | 'taskbar' | 'sticky' | 'notification' | 'widget' | 'milestone';
 
 /** Input event types */
 export type InputType = 'key' | 'click' | 'touch';

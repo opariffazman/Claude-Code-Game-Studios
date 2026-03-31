@@ -134,6 +134,12 @@ export const ELEMENT_TYPE_CONFIGS: Record<ElementType, ElementTypeConfig> = {
     height: 100,
     labels: ['Clock Widget', 'Weather Widget', 'Music Widget'],
   },
+  milestone: {
+    type: 'milestone',
+    width: 220,
+    height: 50,
+    labels: ['Milestones'],
+  },
 };
 
 // ---------------------------------------------------------------------------

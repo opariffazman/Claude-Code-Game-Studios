@@ -64,6 +64,7 @@ export const DESKTOP_CONFIG = {
     sticky: 2,
     notification: 2,
     widget: 3,
+    milestone: 3,
   },
   /** Impulse physics */
   IMPULSE_FORCE_MIN: 80,

@@ -359,6 +359,75 @@ export class DesktopManager {
     return { element: el, container: contentContainer };
   }
 
+  /**
+   * Create a milestone banner element using banner_modern.svg stretched horizontally.
+   *
+   * Unlike createFunctionalWindow() which uses square adventure panels, this method
+   * builds a wide horizontal banner backed by the banner_modern SVG texture.
+   * The returned container is the inner content area; callers attach text/log children.
+   *
+   * Implements: desk-smasher-517 — milestone banner as destructible desktop element.
+   *
+   * @param title - Label string used in the element's id and label.
+   * @param x     - Absolute X position in canvas pixels.
+   * @param y     - Absolute Y position in canvas pixels.
+   * @param w     - Width in canvas pixels (stretched horizontally).
+   * @param h     - Height in canvas pixels.
+   * @returns Object with the DesktopElement and its inner content Container, or null
+   *          if the banner_modern texture is not yet loaded.
+   */
+  createMilestoneBanner(
+    title: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    onRespawn?: (container: Container) => void,
+  ): { element: DesktopElement; container: Container } | null {
+    const bannerTex = Assets.get<Texture>(ADV_BANNER_MODERN);
+    if (!bannerTex) return null;
+
+    const c = new Container();
+    c.label = `milestone-${title}`;
+
+    // Banner background — stretched horizontally to fill (w x h).
+    const bg = new Sprite(bannerTex);
+    bg.width = w;
+    bg.height = h;
+    c.addChild(bg);
+
+    // Inner content container — callers attach their UI children here.
+    const content = new Container();
+    content.label = 'func-content';
+    content.position.set(15, 8);
+    c.addChild(content);
+
+    c.position.set(x, y);
+    this.container.addChild(c);
+
+    const el: DesktopElement = {
+      id: `milestone-${nextId++}`,
+      type: 'milestone',
+      label: title,
+      health: DESKTOP_CONFIG.HEALTH.milestone ?? 3,
+      maxHealth: DESKTOP_CONFIG.HEALTH.milestone ?? 3,
+      destroyed: false,
+      x, y, width: w, height: h,
+      vx: 0, vy: 0, rotSpeed: 0,
+    };
+
+    this._elements.push(el);
+    this.containers.push(c);
+    this._totalHealth += el.maxHealth;
+    this._currentHealth += el.maxHealth;
+
+    if (onRespawn) {
+      this._respawnCallbacks.set(el.id, onRespawn);
+    }
+
+    return { element: el, container: content };
+  }
+
   // ---------------------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------------------
